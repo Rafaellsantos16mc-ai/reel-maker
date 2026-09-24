@@ -4,12 +4,7 @@ import requests
 
 from flask import Flask, request, render_template_string, send_file
 from gtts import gTTS
-
-from moviepy import (
-    ImageClip,
-    concatenate_videoclips,
-    AudioFileClip
-)
+from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
 
 app = Flask(__name__)
 
@@ -17,69 +12,73 @@ app = Flask(__name__)
 # CONFIGURAÇÕES
 # =========================
 
-LARGURA = 540
-ALTURA = 960
+WIDTH = 540
+HEIGHT = 960
 FPS = 15
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
 
-PASTA_VIDEOS = "videos"
-PASTA_IMAGENS = "imagens"
-PASTA_AUDIO = "audios"
+VIDEOS_DIR = "videos"
+IMAGES_DIR = "imagens"
+AUDIO_DIR = "audios"
 
-os.makedirs(PASTA_VIDEOS, exist_ok=True)
-os.makedirs(PASTA_IMAGENS, exist_ok=True)
-os.makedirs(PASTA_AUDIO, exist_ok=True)
+os.makedirs(VIDEOS_DIR, exist_ok=True)
+os.makedirs(IMAGES_DIR, exist_ok=True)
+os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
 # =========================
-# CRIAR ROTEIRO
+# ROTEIROS
 # =========================
 
 def criar_roteiro(tema, estilo):
 
-    roteiros = {
-
-        "Motivacional": [
-            f"Você está buscando melhorar em {tema}.",
-            f"Muitas pessoas desistem de {tema} antes de conseguir resultados.",
-            "Mas a diferença está em continuar mesmo quando fica difícil.",
-            "Dê um passo de cada vez e não pare."
-        ],
-
-        "Dinheiro": [
-            f"Você quer entender melhor {tema}?",
-            "Antes de buscar resultados, é importante aprender e entender como as coisas funcionam.",
-            "Pequenas decisões podem fazer diferença ao longo do tempo.",
-            "Busque conhecimento e tome decisões com responsabilidade."
-        ],
-
-        "Curiosidades": [
-            f"Você sabia que existem curiosidades incríveis sobre {tema}?",
-            "Algumas informações são tão interessantes que poucas pessoas conhecem.",
-            f"Quando você pesquisa mais sobre {tema}, descobre detalhes surpreendentes.",
-            "Agora você já conhece mais uma curiosidade."
-        ],
-
-        "Futebol": [
+    if estilo == "Motivacional":
+        return [
             f"Hoje vamos falar sobre {tema}.",
-            "O futebol é cheio de histórias, números e momentos que marcaram gerações.",
-            f"E quando pesquisamos a história de {tema}, encontramos fatos muito interessantes.",
-            "Você já conhecia essa história?"
-        ],
-
-        "História": [
-            f"Hoje vamos conhecer um pouco da história de {tema}.",
-            "Ao longo dos anos, muitos acontecimentos ajudaram a construir essa história.",
-            f"Conhecer o passado de {tema} ajuda a entender melhor o presente.",
-            "Essa é mais uma história que merece ser lembrada."
+            f"Quando o assunto é {tema}, muita gente acaba desistindo cedo demais.",
+            "Mas os resultados aparecem quando você mantém a constância.",
+            "Continue avançando um passo de cada vez."
         ]
-    }
 
-    return roteiros.get(
-        estilo,
-        roteiros["Motivacional"]
-    )
+    if estilo == "Dinheiro":
+        return [
+            f"Hoje vamos falar sobre {tema}.",
+            "Antes de buscar resultados, é importante entender como as coisas funcionam.",
+            "Conhecimento e planejamento podem ajudar nas suas decisões.",
+            "Aprenda, pratique e evolua todos os dias."
+        ]
+
+    if estilo == "Curiosidades":
+        return [
+            f"Você conhece essas curiosidades sobre {tema}?",
+            "Existem informações muito interessantes que poucas pessoas conhecem.",
+            f"Quando pesquisamos mais sobre {tema}, encontramos detalhes surpreendentes.",
+            "Agora você já conhece mais uma curiosidade."
+        ]
+
+    if estilo == "Futebol":
+        return [
+            f"Hoje vamos falar sobre {tema}.",
+            "O futebol é cheio de histórias e momentos marcantes.",
+            f"Quando pesquisamos sobre {tema}, encontramos fatos muito interessantes.",
+            "Você já conhecia essa história?"
+        ]
+
+    if estilo == "História":
+        return [
+            f"Hoje vamos conhecer um pouco da história de {tema}.",
+            "O passado guarda acontecimentos que ajudam a entender o presente.",
+            f"A história de {tema} possui momentos muito interessantes.",
+            "Essa é mais uma história que merece ser conhecida."
+        ]
+
+    return [
+        f"Hoje vamos falar sobre {tema}.",
+        f"Existem muitas informações interessantes sobre {tema}.",
+        "Continue acompanhando para descobrir mais.",
+        "Até o próximo vídeo."
+    ]
 
 
 # =========================
@@ -89,9 +88,7 @@ def criar_roteiro(tema, estilo):
 def buscar_imagens(tema):
 
     if not PEXELS_API_KEY:
-        raise Exception(
-            "PEXELS_API_KEY não configurada."
-        )
+        raise Exception("PEXELS_API_KEY não encontrada.")
 
     url = "https://api.pexels.com/v1/search"
 
@@ -109,7 +106,7 @@ def buscar_imagens(tema):
         url,
         headers=headers,
         params=params,
-        timeout=20
+        timeout=30
     )
 
     if resposta.status_code != 200:
@@ -122,31 +119,27 @@ def buscar_imagens(tema):
     fotos = dados.get("photos", [])
 
     if not fotos:
-        raise Exception(
-            "Nenhuma imagem encontrada."
-        )
+        raise Exception("Nenhuma imagem encontrada.")
 
-    imagens = []
+    links = []
 
     for foto in fotos:
 
         src = foto.get("src", {})
 
         link = (
-            src.get("large2x")
-            or src.get("large")
+            src.get("large")
+            or src.get("medium")
             or src.get("original")
         )
 
         if link:
-            imagens.append(link)
+            links.append(link)
 
-    if not imagens:
-        raise Exception(
-            "Não foi possível encontrar imagens."
-        )
+    if not links:
+        raise Exception("Nenhuma imagem disponível.")
 
-    return imagens[:4]
+    return links[:4]
 
 
 # =========================
@@ -156,7 +149,7 @@ def buscar_imagens(tema):
 def preparar_imagem(url, numero):
 
     caminho = os.path.join(
-        PASTA_IMAGENS,
+        IMAGES_DIR,
         f"imagem_{numero}.jpg"
     )
 
@@ -166,99 +159,54 @@ def preparar_imagem(url, numero):
     )
 
     if resposta.status_code != 200:
-        raise Exception(
-            "Erro ao baixar imagem."
-        )
+        raise Exception("Erro ao baixar imagem.")
 
     with open(caminho, "wb") as arquivo:
         arquivo.write(resposta.content)
 
     from PIL import Image
 
-    imagem = Image.open(
-        caminho
-    ).convert("RGB")
+    imagem = Image.open(caminho).convert("RGB")
 
-    proporcao_desejada = (
-        LARGURA / ALTURA
+    # Tamanho vertical 9:16
+    imagem.thumbnail(
+        (WIDTH, HEIGHT),
+        Image.Resampling.LANCZOS
     )
 
-    largura_original, altura_original = (
-        imagem.size
+    fundo = Image.new(
+        "RGB",
+        (WIDTH, HEIGHT),
+        "black"
     )
 
-    proporcao_original = (
-        largura_original / altura_original
+    x = (WIDTH - imagem.width) // 2
+    y = (HEIGHT - imagem.height) // 2
+
+    fundo.paste(
+        imagem,
+        (x, y)
     )
 
-    # Corta as laterais
-    if proporcao_original > proporcao_desejada:
-
-        nova_largura = int(
-            altura_original *
-            proporcao_desejada
-        )
-
-        esquerda = (
-            largura_original -
-            nova_largura
-        ) // 2
-
-        imagem = imagem.crop(
-            (
-                esquerda,
-                0,
-                esquerda + nova_largura,
-                altura_original
-            )
-        )
-
-    # Corta em cima/baixo
-    else:
-
-        nova_altura = int(
-            largura_original /
-            proporcao_desejada
-        )
-
-        topo = (
-            altura_original -
-            nova_altura
-        ) // 2
-
-        imagem = imagem.crop(
-            (
-                0,
-                topo,
-                largura_original,
-                topo + nova_altura
-            )
-        )
-
-    imagem = imagem.resize(
-        (LARGURA, ALTURA)
-    )
-
-    imagem.save(
+    fundo.save(
         caminho,
         "JPEG",
-        quality=85,
-        optimize=True
+        quality=85
     )
 
     return caminho
 
 
 # =========================
-# GERAR NARRAÇÃO
+# GERAR VOZ
 # =========================
 
-def criar_narracao(roteiro):
+def gerar_narracao(roteiro):
 
     texto = " ".join(roteiro)
 
-    caminho_audio = os.path.join(
-        PASTA_AUDIO,
+    caminho = os.path.join(
+        AUDIO_DIR,
         "narracao.mp3"
     )
 
@@ -266,47 +214,40 @@ def criar_narracao(roteiro):
 
     voz = gTTS(
         text=texto,
-        lang="pt",
+        lang="pt-br",
         slow=False
     )
 
-    voz.save(
-        caminho_audio
-    )
+    voz.save(caminho)
 
-    if not os.path.exists(
-        caminho_audio
-    ):
-        raise Exception(
-            "Falha ao gerar narração."
-        )
+    if not os.path.exists(caminho):
+        raise Exception("A narração não foi criada.")
 
-    return caminho_audio
+    return caminho
 
 
 # =========================
 # CRIAR VÍDEO
 # =========================
 
-def criar_video(
-    tema,
-    estilo,
-    duracao
-):
+def criar_video(tema, estilo, duracao):
 
-    # Cria roteiro
+    print("Criando roteiro...")
+
     roteiro = criar_roteiro(
         tema,
         estilo
     )
 
-    # Busca imagens
-    imagens_urls = buscar_imagens(
+    print("Buscando imagens...")
+
+    imagens = buscar_imagens(
         tema
     )
 
-    # Gera voz
-    caminho_audio = criar_narracao(
+    print("Gerando narração...")
+
+    caminho_audio = gerar_narracao(
         roteiro
     )
 
@@ -314,74 +255,53 @@ def criar_video(
         caminho_audio
     )
 
-    # A duração real da voz
-    # determina a duração final.
     duracao_audio = float(
         audio.duration
     )
 
-    duracao_final = max(
+    # O vídeo acompanha a narração.
+    duracao_video = max(
         float(duracao),
         duracao_audio
     )
 
-    # Evita vídeos muito maiores
-    # que o escolhido pelo usuário.
-    if duracao_final > duracao + 5:
-        duracao_final = float(
-            duracao + 5
+    # Limite de segurança
+    if duracao_video > duracao + 5:
+        duracao_video = float(duracao + 5)
+
+    tempo_por_imagem = (
+        duracao_video / len(imagens)
+    )
+
+    clips = []
+
+    for i, url in enumerate(imagens):
+
+        print(
+            f"Preparando imagem {i + 1}..."
         )
-
-    quantidade = len(
-        imagens_urls
-    )
-
-    duracao_cena = (
-        duracao_final /
-        quantidade
-    )
-
-    cenas = []
-
-    # =========================
-    # CRIAR CENAS
-    # =========================
-
-    for i, url in enumerate(
-        imagens_urls
-    ):
 
         caminho = preparar_imagem(
             url,
             i
         )
 
-        imagem = ImageClip(
+        clip = ImageClip(
             caminho
         ).with_duration(
-            duracao_cena
+            tempo_por_imagem
         )
 
-        # Zoom suave
-        imagem = imagem.resized(
-            lambda t:
-            1 + (0.03 * t)
-        )
+        clips.append(clip)
 
-        cenas.append(
-            imagem
-        )
+    print("Montando vídeo...")
 
-    # Junta as imagens
     video = concatenate_videoclips(
-        cenas,
+        clips,
         method="compose"
     )
 
-    # =========================
-    # ADICIONAR NARRAÇÃO
-    # =========================
-
+    # Ajustar o áudio ao vídeo
     if audio.duration > video.duration:
 
         audio = audio.subclipped(
@@ -389,39 +309,29 @@ def criar_video(
             video.duration
         )
 
+    # SOMENTE NARRAÇÃO
     video = video.with_audio(
         audio
     )
 
-    # =========================
-    # SALVAR
-    # =========================
-
     nome = (
         "reel_"
-        + str(
-            random.randint(
-                10000,
-                99999
-            )
-        )
+        + str(random.randint(10000, 99999))
         + ".mp4"
     )
 
-    caminho_video = os.path.join(
-        PASTA_VIDEOS,
+    caminho_final = os.path.join(
+        VIDEOS_DIR,
         nome
     )
 
-    print(
-        "Renderizando vídeo..."
-    )
+    print("Renderizando MP4...")
 
     video.write_videofile(
-        caminho_video,
+        caminho_final,
         fps=FPS,
         codec="libx264",
-        audio=True,
+        audio_codec="aac",
         preset="ultrafast",
         threads=1,
         logger=None
@@ -437,11 +347,11 @@ def criar_video(
     except:
         pass
 
-    return caminho_video
+    return caminho_final
 
 
 # =========================
-# INTERFACE
+# PÁGINA
 # =========================
 
 HTML = """
@@ -478,6 +388,8 @@ select,
 button {
 
     width: 100%;
+    box-sizing: border-box;
+
     padding: 15px;
     margin: 10px 0;
 
@@ -503,7 +415,6 @@ button {
     padding: 15px;
 
     background: #222;
-
     border-radius: 10px;
 }
 
@@ -518,7 +429,7 @@ button {
 <h1>🎬 Reel Maker</h1>
 
 <p>
-Vídeos com imagens e narração automática.
+Imagens + narração automática
 </p>
 
 <form method="POST">
@@ -526,7 +437,7 @@ Vídeos com imagens e narração automática.
 <input
     type="text"
     name="tema"
-    placeholder="Digite o tema do vídeo"
+    placeholder="Digite o tema"
     required
 >
 
@@ -610,10 +521,7 @@ História
 # ROTA PRINCIPAL
 # =========================
 
-@app.route(
-    "/",
-    methods=["GET", "POST"]
-)
+@app.route("/", methods=["GET", "POST"])
 def index():
 
     mensagem = ""
@@ -632,31 +540,25 @@ def index():
         )
 
         try:
-
             duracao = int(
                 request.form.get(
                     "duracao",
                     10
                 )
             )
-
         except:
-
             duracao = 10
 
         if not tema:
 
-            mensagem = (
-                "Digite um tema."
-            )
+            mensagem = "Digite um tema."
 
         else:
 
             try:
 
                 mensagem = (
-                    "🎙️ Criando roteiro, "
-                    "narração e vídeo..."
+                    "🎙️ Criando seu vídeo..."
                 )
 
                 caminho = criar_video(
@@ -670,8 +572,7 @@ def index():
                 )
 
                 mensagem = (
-                    "✅ Reel criado "
-                    "com sucesso!"
+                    "✅ Vídeo criado com sucesso!"
                 )
 
             except Exception as erro:
@@ -697,22 +598,16 @@ def index():
 # DOWNLOAD
 # =========================
 
-@app.route(
-    "/download/<nome>"
-)
+@app.route("/download/<nome>")
 def download(nome):
 
     caminho = os.path.join(
-        PASTA_VIDEOS,
+        VIDEOS_DIR,
         nome
     )
 
     if not os.path.exists(caminho):
-
-        return (
-            "Vídeo não encontrado.",
-            404
-        )
+        return "Vídeo não encontrado.", 404
 
     return send_file(
         caminho,
