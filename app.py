@@ -1,5 +1,5 @@
 from flask import Flask, request, send_file, render_template_string
-from moviepy import ImageClip, ColorClip, TextClip, CompositeVideoClip, concatenate_videoclips
+from moviepy import ImageClip, TextClip, CompositeVideoClip, concatenate_videoclips
 import requests
 import os
 import uuid
@@ -15,17 +15,18 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
 
+WIDTH = 540
+HEIGHT = 960
+FPS = 15
+
 
 HTML = """
 <!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
-
 <meta charset="UTF-8">
-
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Reel Maker</title>
 
@@ -36,7 +37,7 @@ body {
     padding: 20px;
     background: #111;
     color: white;
-    font-family: Arial;
+    font-family: Arial, sans-serif;
 }
 
 .box {
@@ -54,65 +55,47 @@ select,
 button {
 
     width: 100%;
-
     padding: 15px;
-
     margin: 8px 0;
-
     box-sizing: border-box;
-
     border: none;
-
     border-radius: 8px;
-
     font-size: 16px;
 }
 
 button {
-
     background: #ff0050;
-
     color: white;
-
     font-weight: bold;
+    cursor: pointer;
+}
 
+button:hover {
+    opacity: 0.85;
 }
 
 .resultado {
-
     margin-top: 25px;
-
 }
 
 </style>
 
 </head>
 
-
 <body>
-
 
 <div class="box">
 
-
 <h1>🎬 REEL MAKER</h1>
-
 
 <form action="/gerar" method="POST">
 
-
 <input
-
-type="text"
-
-name="tema"
-
-placeholder="Digite o tema do vídeo"
-
-required
-
+    type="text"
+    name="tema"
+    placeholder="Digite o tema do vídeo"
+    required
 >
-
 
 <select name="estilo">
 
@@ -138,7 +121,6 @@ required
 
 </select>
 
-
 <select name="duracao">
 
 <option value="10">
@@ -155,16 +137,11 @@ required
 
 </select>
 
-
 <button type="submit">
-
 🚀 GERAR REEL
-
 </button>
 
-
 </form>
-
 
 {% if video %}
 
@@ -175,9 +152,7 @@ required
 <a href="/baixar/{{ video }}">
 
 <button>
-
 ⬇️ BAIXAR REEL
-
 </button>
 
 </a>
@@ -185,7 +160,6 @@ required
 </div>
 
 {% endif %}
-
 
 {% if erro %}
 
@@ -199,9 +173,7 @@ required
 
 {% endif %}
 
-
 </div>
-
 
 </body>
 
@@ -211,56 +183,38 @@ required
 
 @app.route("/")
 def home():
-
     return render_template_string(HTML)
 
 
 def buscar_imagens(tema):
 
     if not PEXELS_API_KEY:
-
         raise Exception(
-            "PEXELS_API_KEY não configurada no Railway."
+            "PEXELS_API_KEY não configurada."
         )
 
     url = "https://api.pexels.com/v1/search"
 
     headers = {
-
-        "Authorization":
-        PEXELS_API_KEY
-
+        "Authorization": PEXELS_API_KEY
     }
 
     params = {
-
         "query": tema,
-
         "per_page": 3,
-
         "orientation": "portrait"
-
     }
 
     resposta = requests.get(
-
         url,
-
         headers=headers,
-
         params=params,
-
         timeout=20
-
     )
 
     if resposta.status_code != 200:
-
         raise Exception(
-
-            f"Erro Pexels: "
-            f"{resposta.status_code}"
-
+            f"Erro Pexels: {resposta.status_code}"
         )
 
     dados = resposta.json()
@@ -268,9 +222,8 @@ def buscar_imagens(tema):
     fotos = dados.get("photos", [])
 
     if not fotos:
-
         raise Exception(
-            "Nenhuma imagem encontrada para esse tema."
+            "Nenhuma imagem encontrada."
         )
 
     arquivos = []
@@ -279,38 +232,29 @@ def buscar_imagens(tema):
 
         imagem_url = foto["src"]["portrait"]
 
-        nome = (
-            f"{uuid.uuid4().hex}.jpg"
-        )
+        nome = f"{uuid.uuid4().hex}.jpg"
 
         caminho = os.path.join(
-
             IMAGE_DIR,
-
             nome
-
         )
 
-        imagem = requests.get(
-
+        resposta_imagem = requests.get(
             imagem_url,
-
             timeout=20
-
         )
 
-        if imagem.status_code != 200:
-
+        if resposta_imagem.status_code != 200:
             continue
 
         with open(caminho, "wb") as arquivo:
-
-            arquivo.write(imagem.content)
+            arquivo.write(
+                resposta_imagem.content
+            )
 
         arquivos.append(caminho)
 
     if not arquivos:
-
         raise Exception(
             "Não foi possível baixar as imagens."
         )
@@ -324,21 +268,17 @@ def preparar_imagem(caminho):
 
     imagem = imagem.convert("RGB")
 
-    largura = 540
-
-    altura = 960
-
     proporcao_original = (
         imagem.width / imagem.height
     )
 
     proporcao_video = (
-        largura / altura
+        WIDTH / HEIGHT
     )
 
     if proporcao_original > proporcao_video:
 
-        nova_altura = altura
+        nova_altura = HEIGHT
 
         nova_largura = int(
             nova_altura *
@@ -347,7 +287,7 @@ def preparar_imagem(caminho):
 
     else:
 
-        nova_largura = largura
+        nova_largura = WIDTH
 
         nova_altura = int(
             nova_largura /
@@ -359,28 +299,72 @@ def preparar_imagem(caminho):
     )
 
     esquerda = (
-        nova_largura - largura
+        nova_largura - WIDTH
     ) // 2
 
     cima = (
-        nova_altura - altura
+        nova_altura - HEIGHT
     ) // 2
 
     imagem = imagem.crop(
-
         (
             esquerda,
             cima,
-            esquerda + largura,
-            cima + altura
+            esquerda + WIDTH,
+            cima + HEIGHT
         )
-
     )
 
     imagem.save(
         caminho,
-        quality=85,
+        quality=80,
         optimize=True
+    )
+
+
+def criar_frases(tema, estilo):
+
+    frases = {
+
+        "motivacional": [
+            f"Você pode mudar sua vida com {tema}.",
+            "Comece hoje.",
+            "Não desista dos seus objetivos."
+        ],
+
+        "dinheiro": [
+            f"Quer aprender sobre {tema}?",
+            "Conhecimento pode abrir novas oportunidades.",
+            "Comece estudando e evoluindo."
+        ],
+
+        "curiosidades": [
+            f"Você sabia disso sobre {tema}?",
+            "Essa informação pode surpreender você.",
+            "Agora você já sabe!"
+        ],
+
+        "futebol": [
+            f"Você conhece essa história do {tema}?",
+            "O futebol sempre tem grandes histórias.",
+            "Compartilhe com quem gosta de futebol."
+        ],
+
+        "historia": [
+            f"Conheça essa história sobre {tema}.",
+            "O passado ajuda a entender o presente.",
+            "Você já conhecia essa história?"
+        ]
+
+    }
+
+    return frases.get(
+        estilo,
+        [
+            f"Você conhece {tema}?",
+            "Continue acompanhando.",
+            "Até o próximo vídeo!"
+        ]
     )
 
 
@@ -392,6 +376,11 @@ def gerar():
         "Meu vídeo"
     )
 
+    estilo = request.form.get(
+        "estilo",
+        "motivacional"
+    )
+
     duracao = int(
         request.form.get(
             "duracao",
@@ -399,31 +388,29 @@ def gerar():
         )
     )
 
-    nome = (
-        f"{uuid.uuid4().hex}.mp4"
-    )
+    nome = f"{uuid.uuid4().hex}.mp4"
 
     caminho_video = os.path.join(
-
         VIDEO_DIR,
-
         nome
-
     )
 
     clips = []
 
     try:
 
-        imagens = buscar_imagens(
-            tema
+        imagens = buscar_imagens(tema)
+
+        frases = criar_frases(
+            tema,
+            estilo
         )
 
         tempo_por_imagem = (
             duracao / len(imagens)
         )
 
-        for caminho_imagem in imagens:
+        for i, caminho_imagem in enumerate(imagens):
 
             preparar_imagem(
                 caminho_imagem
@@ -437,51 +424,59 @@ def gerar():
                 tempo_por_imagem
             )
 
-            clips.append(clip)
+            # Zoom suave
+            clip = clip.resized(
+                lambda t: 1 + (0.03 * t)
+            )
 
-        video_base = concatenate_videoclips(
+            clip = clip.with_position(
+                "center"
+            )
+
+            texto = TextClip(
+
+                text=frases[
+                    i % len(frases)
+                ],
+
+                font_size=38,
+
+                color="white",
+
+                size=(460, 180),
+
+                method="caption"
+
+            )
+
+            texto = texto.with_duration(
+                tempo_por_imagem
+            )
+
+            texto = texto.with_position(
+                ("center", 680)
+            )
+
+            cena = CompositeVideoClip(
+                [
+                    clip,
+                    texto
+                ],
+                size=(WIDTH, HEIGHT)
+            )
+
+            clips.append(cena)
+
+        video = concatenate_videoclips(
             clips,
             method="compose"
-        )
-
-        titulo = TextClip(
-
-            text=tema,
-
-            font_size=45,
-
-            color="white",
-
-            size=(460, 220),
-
-            method="caption"
-
-        )
-
-        titulo = titulo.with_duration(
-            duracao
-        )
-
-        titulo = titulo.with_position(
-            ("center", 650)
-        )
-
-        video = CompositeVideoClip(
-
-            [
-                video_base,
-                titulo
-            ],
-
-            size=(540, 960)
-
         )
 
         video.write_videofile(
 
             caminho_video,
 
-            fps=15,
+            fps=FPS,
 
             codec="libx264",
 
@@ -497,18 +492,12 @@ def gerar():
 
         video.close()
 
-        video_base.close()
-
         for clip in clips:
-
             clip.close()
 
         return render_template_string(
-
             HTML,
-
             video=nome
-
         )
 
     except Exception as e:
@@ -516,19 +505,13 @@ def gerar():
         for clip in clips:
 
             try:
-
                 clip.close()
-
             except:
-
                 pass
 
         return render_template_string(
-
             HTML,
-
             erro=str(e)
-
         )
 
 
@@ -536,11 +519,8 @@ def gerar():
 def baixar(nome):
 
     caminho = os.path.join(
-
         VIDEO_DIR,
-
         nome
-
     )
 
     if not os.path.exists(caminho):
@@ -568,15 +548,10 @@ if __name__ == "__main__":
         host="0.0.0.0",
 
         port=int(
-
             os.environ.get(
-
                 "PORT",
-
                 8080
-
             )
-
         )
 
     )
