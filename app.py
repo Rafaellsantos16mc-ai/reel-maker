@@ -22,9 +22,10 @@ PASTA_VIDEOS = "videos"
 PASTA_IMAGENS = "imagens"
 PASTA_MUSICAS = "music"
 
+# Criar somente as pastas geradas pelo programa.
+# A pasta "music" deve existir no projeto.
 os.makedirs(PASTA_VIDEOS, exist_ok=True)
 os.makedirs(PASTA_IMAGENS, exist_ok=True)
-os.makedirs(PASTA_MUSICAS, exist_ok=True)
 
 
 # =========================
@@ -65,7 +66,10 @@ def criar_frases(tema, estilo):
         ]
     }
 
-    return frases.get(estilo, frases["Motivacional"])
+    return frases.get(
+        estilo,
+        frases["Motivacional"]
+    )
 
 
 # =========================
@@ -75,7 +79,9 @@ def criar_frases(tema, estilo):
 def buscar_imagens(tema):
 
     if not PEXELS_API_KEY:
-        raise Exception("PEXELS_API_KEY não configurada.")
+        raise Exception(
+            "PEXELS_API_KEY não configurada."
+        )
 
     url = "https://api.pexels.com/v1/search"
 
@@ -106,7 +112,9 @@ def buscar_imagens(tema):
     fotos = dados.get("photos", [])
 
     if not fotos:
-        raise Exception("Nenhuma imagem encontrada.")
+        raise Exception(
+            "Nenhuma imagem encontrada."
+        )
 
     imagens = []
 
@@ -123,11 +131,16 @@ def buscar_imagens(tema):
         if link:
             imagens.append(link)
 
+    if not imagens:
+        raise Exception(
+            "Não foi possível encontrar imagens."
+        )
+
     return imagens[:3]
 
 
 # =========================
-# BAIXAR E PREPARAR IMAGEM
+# PREPARAR IMAGEM
 # =========================
 
 def preparar_imagem(url, numero):
@@ -143,32 +156,42 @@ def preparar_imagem(url, numero):
     )
 
     if resposta.status_code != 200:
-        raise Exception("Erro ao baixar imagem.")
+        raise Exception(
+            "Erro ao baixar imagem."
+        )
 
     with open(caminho, "wb") as arquivo:
         arquivo.write(resposta.content)
 
     from PIL import Image
 
-    imagem = Image.open(caminho).convert("RGB")
+    imagem = Image.open(
+        caminho
+    ).convert("RGB")
 
-    # Ajusta para formato vertical 9:16
-    proporcao_desejada = LARGURA / ALTURA
+    proporcao_desejada = (
+        LARGURA / ALTURA
+    )
 
-    largura_original, altura_original = imagem.size
+    largura_original, altura_original = (
+        imagem.size
+    )
 
     proporcao_original = (
         largura_original / altura_original
     )
 
+    # Cortar largura
     if proporcao_original > proporcao_desejada:
 
         nova_largura = int(
-            altura_original * proporcao_desejada
+            altura_original *
+            proporcao_desejada
         )
 
         esquerda = (
-            largura_original - nova_largura
+            largura_original -
+            nova_largura
         ) // 2
 
         imagem = imagem.crop(
@@ -180,14 +203,17 @@ def preparar_imagem(url, numero):
             )
         )
 
+    # Cortar altura
     else:
 
         nova_altura = int(
-            largura_original / proporcao_desejada
+            largura_original /
+            proporcao_desejada
         )
 
         topo = (
-            altura_original - nova_altura
+            altura_original -
+            nova_altura
         ) // 2
 
         imagem = imagem.crop(
@@ -219,6 +245,11 @@ def preparar_imagem(url, numero):
 
 def encontrar_musica():
 
+    # Se a pasta não existir,
+    # simplesmente cria o vídeo sem música.
+    if not os.path.isdir(PASTA_MUSICAS):
+        return None
+
     extensoes = [
         ".mp3",
         ".wav",
@@ -228,21 +259,24 @@ def encontrar_musica():
 
     arquivos = []
 
-    for nome in os.listdir(PASTA_MUSICAS):
+    for nome in os.listdir(
+        PASTA_MUSICAS
+    ):
 
         caminho = os.path.join(
             PASTA_MUSICAS,
             nome
         )
 
-        if os.path.isfile(caminho):
+        if not os.path.isfile(caminho):
+            continue
 
-            extensao = os.path.splitext(
-                nome
-            )[1].lower()
+        extensao = os.path.splitext(
+            nome
+        )[1].lower()
 
-            if extensao in extensoes:
-                arquivos.append(caminho)
+        if extensao in extensoes:
+            arquivos.append(caminho)
 
     if not arquivos:
         return None
@@ -260,20 +294,29 @@ def criar_video(
     duracao
 ):
 
-    imagens_urls = buscar_imagens(tema)
+    imagens_urls = buscar_imagens(
+        tema
+    )
 
     frases = criar_frases(
         tema,
         estilo
     )
 
-    quantidade_cenas = len(imagens_urls)
+    quantidade_cenas = len(
+        imagens_urls
+    )
 
-    duracao_cena = duracao / quantidade_cenas
+    duracao_cena = (
+        duracao /
+        quantidade_cenas
+    )
 
     cenas = []
 
-    for i, url in enumerate(imagens_urls):
+    for i, url in enumerate(
+        imagens_urls
+    ):
 
         caminho_imagem = preparar_imagem(
             url,
@@ -288,7 +331,8 @@ def criar_video(
 
         # Zoom suave
         imagem = imagem.resized(
-            lambda t: 1 + (0.03 * t)
+            lambda t:
+            1 + (0.03 * t)
         )
 
         # Texto
@@ -316,7 +360,10 @@ def criar_video(
                 imagem,
                 texto
             ],
-            size=(LARGURA, ALTURA)
+            size=(
+                LARGURA,
+                ALTURA
+            )
         )
 
         cenas.append(cena)
@@ -327,7 +374,7 @@ def criar_video(
     )
 
     # =========================
-    # MÚSICA
+    # ADICIONAR MÚSICA
     # =========================
 
     caminho_musica = encontrar_musica()
@@ -342,20 +389,14 @@ def criar_video(
                 caminho_musica
             )
 
-            # Se a música for maior que o vídeo,
-            # corta no tamanho do vídeo.
+            # Cortar música se ela for
+            # maior que o vídeo.
             if audio.duration > duracao:
 
                 audio = audio.subclipped(
                     0,
                     duracao
                 )
-
-            else:
-
-                # Se for menor, ela será usada
-                # até terminar.
-                pass
 
             # Volume da música
             audio = audio.with_volume_scaled(
@@ -366,19 +407,39 @@ def criar_video(
                 audio
             )
 
+            print(
+                "Música adicionada:",
+                caminho_musica
+            )
+
         except Exception as erro:
 
             print(
-                f"Erro ao adicionar música: {erro}"
+                "Erro ao adicionar música:",
+                erro
             )
 
+            audio = None
+
+    else:
+
+        print(
+            "Nenhuma música encontrada. "
+            "Vídeo será criado sem música."
+        )
+
     # =========================
-    # SALVAR
+    # SALVAR VÍDEO
     # =========================
 
     nome_arquivo = (
         "reel_"
-        + str(random.randint(10000, 99999))
+        + str(
+            random.randint(
+                10000,
+                99999
+            )
+        )
         + ".mp4"
     )
 
@@ -397,7 +458,7 @@ def criar_video(
         logger=None
     )
 
-    # Fecha recursos
+    # Fechar recursos
     try:
         video.close()
     except:
@@ -413,7 +474,7 @@ def criar_video(
 
 
 # =========================
-# PÁGINA
+# INTERFACE
 # =========================
 
 HTML = """
@@ -435,7 +496,7 @@ content="width=device-width, initial-scale=1.0">
 body {
     background: #111;
     color: white;
-    font-family: Arial;
+    font-family: Arial, sans-serif;
     text-align: center;
     padding: 30px;
 }
@@ -463,6 +524,7 @@ button {
 
     background: #00c853;
     color: white;
+
     font-weight: bold;
 
     cursor: pointer;
@@ -478,6 +540,7 @@ button:hover {
     padding: 15px;
 
     background: #222;
+
     border-radius: 10px;
 }
 
@@ -559,9 +622,11 @@ História
 {% if video %}
 
 <a href="/download/{{ video }}">
+
 <button>
 ⬇️ Baixar vídeo
 </button>
+
 </a>
 
 {% endif %}
@@ -579,10 +644,13 @@ História
 
 
 # =========================
-# ROTAS
+# ROTA PRINCIPAL
 # =========================
 
-@app.route("/", methods=["GET", "POST"])
+@app.route(
+    "/",
+    methods=["GET", "POST"]
+)
 def index():
 
     mensagem = ""
@@ -600,16 +668,24 @@ def index():
             "Motivacional"
         )
 
-        duracao = int(
-            request.form.get(
-                "duracao",
-                10
+        try:
+
+            duracao = int(
+                request.form.get(
+                    "duracao",
+                    10
+                )
             )
-        )
+
+        except:
+
+            duracao = 10
 
         if not tema:
 
-            mensagem = "Digite um tema."
+            mensagem = (
+                "Digite um tema."
+            )
 
         else:
 
@@ -630,7 +706,8 @@ def index():
                 )
 
                 mensagem = (
-                    "✅ Vídeo criado com sucesso!"
+                    "✅ Vídeo criado "
+                    "com sucesso!"
                 )
 
             except Exception as erro:
@@ -640,6 +717,11 @@ def index():
                     + str(erro)
                 )
 
+                print(
+                    "ERRO:",
+                    erro
+                )
+
     return render_template_string(
         HTML,
         mensagem=mensagem,
@@ -647,7 +729,13 @@ def index():
     )
 
 
-@app.route("/download/<nome>")
+# =========================
+# DOWNLOAD
+# =========================
+
+@app.route(
+    "/download/<nome>"
+)
 def download(nome):
 
     caminho = os.path.join(
@@ -656,7 +744,11 @@ def download(nome):
     )
 
     if not os.path.exists(caminho):
-        return "Vídeo não encontrado.", 404
+
+        return (
+            "Vídeo não encontrado.",
+            404
+        )
 
     return send_file(
         caminho,
@@ -665,7 +757,7 @@ def download(nome):
 
 
 # =========================
-# INICIAR SERVIDOR
+# SERVIDOR
 # =========================
 
 if __name__ == "__main__":
