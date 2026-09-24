@@ -3,8 +3,13 @@ import random
 import requests
 
 from flask import Flask, request, render_template_string, send_file
-from moviepy import ImageClip, TextClip, CompositeVideoClip, concatenate_videoclips
-from moviepy import AudioFileClip
+from gtts import gTTS
+
+from moviepy import (
+    ImageClip,
+    concatenate_videoclips,
+    AudioFileClip
+)
 
 app = Flask(__name__)
 
@@ -20,60 +25,65 @@ PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
 
 PASTA_VIDEOS = "videos"
 PASTA_IMAGENS = "imagens"
-PASTA_MUSICAS = "music"
+PASTA_AUDIO = "audios"
 
-# Criar somente as pastas geradas pelo programa.
-# A pasta "music" deve existir no projeto.
 os.makedirs(PASTA_VIDEOS, exist_ok=True)
 os.makedirs(PASTA_IMAGENS, exist_ok=True)
+os.makedirs(PASTA_AUDIO, exist_ok=True)
 
 
 # =========================
-# FRASES
+# CRIAR ROTEIRO
 # =========================
 
-def criar_frases(tema, estilo):
+def criar_roteiro(tema, estilo):
 
-    frases = {
+    roteiros = {
+
         "Motivacional": [
-            f"Não desista de {tema}.",
-            "Continue mesmo quando estiver difícil.",
-            "O resultado vem para quem continua."
+            f"Você está buscando melhorar em {tema}.",
+            f"Muitas pessoas desistem de {tema} antes de conseguir resultados.",
+            "Mas a diferença está em continuar mesmo quando fica difícil.",
+            "Dê um passo de cada vez e não pare."
         ],
 
         "Dinheiro": [
-            f"Quer aprender mais sobre {tema}?",
-            "Conhecimento pode abrir novas oportunidades.",
-            "Comece pequeno e evolua todos os dias."
+            f"Você quer entender melhor {tema}?",
+            "Antes de buscar resultados, é importante aprender e entender como as coisas funcionam.",
+            "Pequenas decisões podem fazer diferença ao longo do tempo.",
+            "Busque conhecimento e tome decisões com responsabilidade."
         ],
 
         "Curiosidades": [
-            f"Você sabia disso sobre {tema}?",
-            "Essa informação pode surpreender você.",
-            "Compartilhe com alguém que precisa saber."
+            f"Você sabia que existem curiosidades incríveis sobre {tema}?",
+            "Algumas informações são tão interessantes que poucas pessoas conhecem.",
+            f"Quando você pesquisa mais sobre {tema}, descobre detalhes surpreendentes.",
+            "Agora você já conhece mais uma curiosidade."
         ],
 
         "Futebol": [
-            f"Você sabia disso sobre {tema}?",
-            "O futebol sempre tem uma história interessante.",
-            "Você conhecia essa curiosidade?"
+            f"Hoje vamos falar sobre {tema}.",
+            "O futebol é cheio de histórias, números e momentos que marcaram gerações.",
+            f"E quando pesquisamos a história de {tema}, encontramos fatos muito interessantes.",
+            "Você já conhecia essa história?"
         ],
 
         "História": [
-            f"Você conhece a história de {tema}?",
-            "O passado guarda histórias incríveis.",
-            "Essa história merece ser conhecida."
+            f"Hoje vamos conhecer um pouco da história de {tema}.",
+            "Ao longo dos anos, muitos acontecimentos ajudaram a construir essa história.",
+            f"Conhecer o passado de {tema} ajuda a entender melhor o presente.",
+            "Essa é mais uma história que merece ser lembrada."
         ]
     }
 
-    return frases.get(
+    return roteiros.get(
         estilo,
-        frases["Motivacional"]
+        roteiros["Motivacional"]
     )
 
 
 # =========================
-# BUSCAR IMAGENS PEXELS
+# BUSCAR IMAGENS
 # =========================
 
 def buscar_imagens(tema):
@@ -91,7 +101,7 @@ def buscar_imagens(tema):
 
     params = {
         "query": tema,
-        "per_page": 3,
+        "per_page": 4,
         "orientation": "portrait"
     }
 
@@ -136,7 +146,7 @@ def buscar_imagens(tema):
             "Não foi possível encontrar imagens."
         )
 
-    return imagens[:3]
+    return imagens[:4]
 
 
 # =========================
@@ -181,7 +191,7 @@ def preparar_imagem(url, numero):
         largura_original / altura_original
     )
 
-    # Cortar largura
+    # Corta as laterais
     if proporcao_original > proporcao_desejada:
 
         nova_largura = int(
@@ -203,7 +213,7 @@ def preparar_imagem(url, numero):
             )
         )
 
-    # Cortar altura
+    # Corta em cima/baixo
     else:
 
         nova_altura = int(
@@ -240,48 +250,38 @@ def preparar_imagem(url, numero):
 
 
 # =========================
-# ENCONTRAR MÚSICA
+# GERAR NARRAÇÃO
 # =========================
 
-def encontrar_musica():
+def criar_narracao(roteiro):
 
-    # Se a pasta não existir,
-    # simplesmente cria o vídeo sem música.
-    if not os.path.isdir(PASTA_MUSICAS):
-        return None
+    texto = " ".join(roteiro)
 
-    extensoes = [
-        ".mp3",
-        ".wav",
-        ".m4a",
-        ".aac"
-    ]
+    caminho_audio = os.path.join(
+        PASTA_AUDIO,
+        "narracao.mp3"
+    )
 
-    arquivos = []
+    print("Gerando narração...")
 
-    for nome in os.listdir(
-        PASTA_MUSICAS
+    voz = gTTS(
+        text=texto,
+        lang="pt",
+        slow=False
+    )
+
+    voz.save(
+        caminho_audio
+    )
+
+    if not os.path.exists(
+        caminho_audio
     ):
-
-        caminho = os.path.join(
-            PASTA_MUSICAS,
-            nome
+        raise Exception(
+            "Falha ao gerar narração."
         )
 
-        if not os.path.isfile(caminho):
-            continue
-
-        extensao = os.path.splitext(
-            nome
-        )[1].lower()
-
-        if extensao in extensoes:
-            arquivos.append(caminho)
-
-    if not arquivos:
-        return None
-
-    return random.choice(arquivos)
+    return caminho_audio
 
 
 # =========================
@@ -294,37 +294,70 @@ def criar_video(
     duracao
 ):
 
-    imagens_urls = buscar_imagens(
-        tema
-    )
-
-    frases = criar_frases(
+    # Cria roteiro
+    roteiro = criar_roteiro(
         tema,
         estilo
     )
 
-    quantidade_cenas = len(
+    # Busca imagens
+    imagens_urls = buscar_imagens(
+        tema
+    )
+
+    # Gera voz
+    caminho_audio = criar_narracao(
+        roteiro
+    )
+
+    audio = AudioFileClip(
+        caminho_audio
+    )
+
+    # A duração real da voz
+    # determina a duração final.
+    duracao_audio = float(
+        audio.duration
+    )
+
+    duracao_final = max(
+        float(duracao),
+        duracao_audio
+    )
+
+    # Evita vídeos muito maiores
+    # que o escolhido pelo usuário.
+    if duracao_final > duracao + 5:
+        duracao_final = float(
+            duracao + 5
+        )
+
+    quantidade = len(
         imagens_urls
     )
 
     duracao_cena = (
-        duracao /
-        quantidade_cenas
+        duracao_final /
+        quantidade
     )
 
     cenas = []
+
+    # =========================
+    # CRIAR CENAS
+    # =========================
 
     for i, url in enumerate(
         imagens_urls
     ):
 
-        caminho_imagem = preparar_imagem(
+        caminho = preparar_imagem(
             url,
             i
         )
 
         imagem = ImageClip(
-            caminho_imagem
+            caminho
         ).with_duration(
             duracao_cena
         )
@@ -335,104 +368,36 @@ def criar_video(
             1 + (0.03 * t)
         )
 
-        # Texto
-        texto = TextClip(
-            text=frases[i],
-            font_size=42,
-            color="white",
-            stroke_color="black",
-            stroke_width=3,
-            method="caption",
-            size=(460, 220),
-            text_align="center"
+        cenas.append(
+            imagem
         )
 
-        texto = texto.with_duration(
-            duracao_cena
-        )
-
-        texto = texto.with_position(
-            ("center", "center")
-        )
-
-        cena = CompositeVideoClip(
-            [
-                imagem,
-                texto
-            ],
-            size=(
-                LARGURA,
-                ALTURA
-            )
-        )
-
-        cenas.append(cena)
-
+    # Junta as imagens
     video = concatenate_videoclips(
         cenas,
         method="compose"
     )
 
     # =========================
-    # ADICIONAR MÚSICA
+    # ADICIONAR NARRAÇÃO
     # =========================
 
-    caminho_musica = encontrar_musica()
+    if audio.duration > video.duration:
 
-    audio = None
-
-    if caminho_musica:
-
-        try:
-
-            audio = AudioFileClip(
-                caminho_musica
-            )
-
-            # Cortar música se ela for
-            # maior que o vídeo.
-            if audio.duration > duracao:
-
-                audio = audio.subclipped(
-                    0,
-                    duracao
-                )
-
-            # Volume da música
-            audio = audio.with_volume_scaled(
-                0.20
-            )
-
-            video = video.with_audio(
-                audio
-            )
-
-            print(
-                "Música adicionada:",
-                caminho_musica
-            )
-
-        except Exception as erro:
-
-            print(
-                "Erro ao adicionar música:",
-                erro
-            )
-
-            audio = None
-
-    else:
-
-        print(
-            "Nenhuma música encontrada. "
-            "Vídeo será criado sem música."
+        audio = audio.subclipped(
+            0,
+            video.duration
         )
 
+    video = video.with_audio(
+        audio
+    )
+
     # =========================
-    # SALVAR VÍDEO
+    # SALVAR
     # =========================
 
-    nome_arquivo = (
+    nome = (
         "reel_"
         + str(
             random.randint(
@@ -445,28 +410,30 @@ def criar_video(
 
     caminho_video = os.path.join(
         PASTA_VIDEOS,
-        nome_arquivo
+        nome
+    )
+
+    print(
+        "Renderizando vídeo..."
     )
 
     video.write_videofile(
         caminho_video,
         fps=FPS,
         codec="libx264",
-        audio=audio is not None,
+        audio=True,
         preset="ultrafast",
         threads=1,
         logger=None
     )
 
-    # Fechar recursos
     try:
         video.close()
     except:
         pass
 
     try:
-        if audio:
-            audio.close()
+        audio.close()
     except:
         pass
 
@@ -530,10 +497,6 @@ button {
     cursor: pointer;
 }
 
-button:hover {
-    opacity: 0.9;
-}
-
 .info {
 
     margin-top: 20px;
@@ -555,7 +518,7 @@ button:hover {
 <h1>🎬 Reel Maker</h1>
 
 <p>
-Crie vídeos para Reels e TikTok automaticamente.
+Vídeos com imagens e narração automática.
 </p>
 
 <form method="POST">
@@ -608,7 +571,7 @@ História
 </select>
 
 <button type="submit">
-🚀 Criar Reel
+🎙️ Criar Reel
 </button>
 
 </form>
@@ -692,7 +655,8 @@ def index():
             try:
 
                 mensagem = (
-                    "Criando seu vídeo..."
+                    "🎙️ Criando roteiro, "
+                    "narração e vídeo..."
                 )
 
                 caminho = criar_video(
@@ -706,7 +670,7 @@ def index():
                 )
 
                 mensagem = (
-                    "✅ Vídeo criado "
+                    "✅ Reel criado "
                     "com sucesso!"
                 )
 
