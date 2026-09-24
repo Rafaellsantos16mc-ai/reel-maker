@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, send_file
 import os
 import uuid
-from moviepy import ColorClip, TextClip, CompositeVideoClip
 
 app = Flask(name)
 
@@ -24,9 +23,6 @@ Reel Maker
         h1 {
             font-size: 36px;
         }
-        p {
-            font-size: 18px;
-        }
         input, select, button {
             width: 90%;
             max-width: 400px;
@@ -37,14 +33,6 @@ Reel Maker
             font-size: 16px;
             box-sizing: border-box;
         }
-        input {
-            background: white;
-            color: black;
-        }
-        select {
-            background: white;
-            color: black;
-        }
         button {
             background: #ff0050;
             color: white;
@@ -53,32 +41,21 @@ Reel Maker
         }
         button:disabled {
             opacity: 0.6;
-            cursor: wait;
         }
         #resultado {
             margin-top: 25px;
-            line-height: 1.6;
         }
         a {
-            display: inline-block;
-            margin-top: 15px;
-            padding: 15px 25px;
-            background: #00c853;
-            color: white;
-            border-radius: 10px;
+            color: #00ff99;
             font-weight: bold;
             text-decoration: none;
         }
     </style>
 </head>
 <body>
-    <h1>🎬 Reel Maker</h1>
-    <p>Crie seu vídeo para TikTok e Reels</p>
-    <input
-        id="tema"
-        type="text"
-        placeholder="Digite o tema do vídeo"
-    >
+    <h1>Reel Maker</h1>
+    <p>Crie seu video para TikTok e Reels</p>
+    <input id="tema" placeholder="Digite o tema do video">
     <select id="duracao">
         <option value="30">30 segundos</option>
         <option value="45">45 segundos</option>
@@ -87,34 +64,27 @@ Reel Maker
     <select id="estilo">
         <option value="Motivacional">Motivacional</option>
         <option value="Curiosidades">Curiosidades</option>
-        <option value="História">História</option>
+        <option value="Historia">Historia</option>
         <option value="Dinheiro">Dinheiro</option>
         <option value="Futebol">Futebol</option>
     </select>
     <button id="botao" onclick="gerar()">
-        GERAR VÍDEO 🚀
+        GERAR VIDEO
     </button>
-    <div id="resultado"></div>
+    <p id="resultado"></p>
     <script>
     async function gerar() {
-        const tema =
-            document.getElementById("tema").value.trim();
-        const duracao =
-            document.getElementById("duracao").value;
-        const estilo =
-            document.getElementById("estilo").value;
-        const botao =
-            document.getElementById("botao");
-        const resultado =
-            document.getElementById("resultado");
+        const tema = document.getElementById("tema").value.trim();
+        const duracao = document.getElementById("duracao").value;
+        const estilo = document.getElementById("estilo").value;
+        const botao = document.getElementById("botao");
+        const resultado = document.getElementById("resultado");
         if (!tema) {
             alert("Digite um tema!");
             return;
         }
         botao.disabled = true;
-        resultado.innerHTML =
-            "⏳ <b>Gerando seu vídeo...</b><br>" +
-            "Isso pode levar alguns segundos.";
+        resultado.innerText = "Gerando seu video... aguarde.";
         try {
             const resposta = await fetch("/gerar", {
                 method: "POST",
@@ -130,22 +100,18 @@ Reel Maker
             const dados = await resposta.json();
             if (dados.sucesso) {
                 resultado.innerHTML =
-                    "✅ <b>Vídeo criado com sucesso!</b><br>" +
-                    '<a href="' +
-                    dados.download +
-                    '" target="_blank">' +
-                    "⬇️ BAIXAR VÍDEO" +
+                    "Video criado com sucesso!<br><br>" +
+                    '<a href="' + dados.download + '" target="_blank">' +
+                    "BAIXAR VIDEO" +
                     "</a>";
             } else {
-                resultado.innerHTML =
-                    "❌ " +
-                    (dados.mensagem ||
-                    "Erro ao criar o vídeo.");
+                resultado.innerText =
+                    dados.mensagem || "Erro ao criar video.";
             }
         } catch (erro) {
             console.error(erro);
-            resultado.innerHTML =
-                "❌ Erro de conexão com o servidor.";
+            resultado.innerText =
+                "Erro de conexao com o servidor.";
         }
         botao.disabled = false;
     }
@@ -179,84 +145,56 @@ try:
         }), 400
     if duracao not in [30, 45, 60]:
         duracao = 30
-    print("================================")
-    print("REEL MAKER")
     print("Tema:", tema)
-    print("Duração:", duracao)
+    print("Duracao:", duracao)
     print("Estilo:", estilo)
-    print("================================")
-    nome = (
-        "reel_" +
-        uuid.uuid4().hex +
-        ".mp4"
-    )
+    nome = "reel_" + uuid.uuid4().hex + ".mp4"
     caminho = os.path.join(
         VIDEO_DIR,
         nome
     )
-    # =========================
-    # CONFIGURAÇÃO DO VÍDEO
-    # =========================
+    # Verifica se o MoviePy esta instalado
+    try:
+        from moviepy import ColorClip, TextClip, CompositeVideoClip
+    except Exception as erro:
+        return jsonify({
+            "sucesso": False,
+            "mensagem": "MoviePy nao esta instalado: " + str(erro)
+        }), 500
     largura = 1080
     altura = 1920
-    # =========================
-    # FUNDO
-    # =========================
     fundo = ColorClip(
         size=(largura, altura),
         color=(17, 17, 17)
-    )
-    fundo = fundo.with_duration(
-        duracao
-    )
-    # =========================
-    # ESTILO
-    # =========================
-    estilo_texto = TextClip(
-        text=estilo.upper(),
-        font_size=50,
-        color="white",
-        size=(900, 150),
-        method="caption",
-        text_align="center"
-    )
-    estilo_texto = estilo_texto.with_duration(
-        duracao
-    )
-    estilo_texto = estilo_texto.with_position(
-        ("center", 300)
-    )
-    # =========================
-    # TEMA
-    # =========================
+    ).with_duration(duracao)
     texto = TextClip(
         text=tema,
-        font_size=90,
+        font_size=80,
         color="white",
         size=(900, 700),
         method="caption",
         text_align="center"
+    ).with_duration(duracao)
+    texto = texto.with_position("center")
+    titulo = TextClip(
+        text=estilo.upper(),
+        font_size=45,
+        color="white",
+        size=(900, 150),
+        method="caption",
+        text_align="center"
+    ).with_duration(duracao)
+    titulo = titulo.with_position(
+        ("center", 300)
     )
-    texto = texto.with_duration(
-        duracao
-    )
-    texto = texto.with_position(
-        "center"
-    )
-    # =========================
-    # MONTAR VÍDEO
-    # =========================
     video = CompositeVideoClip(
         [
             fundo,
-            estilo_texto,
+            titulo,
             texto
         ],
         size=(largura, altura)
     )
-    # =========================
-    # EXPORTAR
-    # =========================
     video.write_videofile(
         caminho,
         fps=30,
@@ -267,29 +205,18 @@ try:
     )
     video.close()
     fundo.close()
-    estilo_texto.close()
     texto.close()
-    print(
-        "Vídeo criado:",
-        caminho
-    )
+    titulo.close()
     return jsonify({
         "sucesso": True,
-        "mensagem":
-            "Vídeo criado com sucesso!",
-        "download":
-            "/download/" + nome
+        "mensagem": "Video criado com sucesso!",
+        "download": "/download/" + nome
     })
 except Exception as erro:
-    print(
-        "ERRO AO GERAR VÍDEO:",
-        erro
-    )
+    print("ERRO:", erro)
     return jsonify({
         "sucesso": False,
-        "mensagem":
-            "Erro ao criar vídeo: " +
-            str(erro)
+        "mensagem": "Erro ao criar video: " + str(erro)
     }), 500
 
 @app.route(”/download/”)
@@ -300,10 +227,7 @@ caminho = os.path.join(
     nome
 )
 if not os.path.exists(caminho):
-    return (
-        "Vídeo não encontrado.",
-        404
-    )
+    return "Video nao encontrado.", 404
 return send_file(
     caminho,
     as_attachment=True,
