@@ -3,8 +3,8 @@ import random
 import requests
 
 from flask import Flask, request, render_template_string, send_file
-from gtts import gTTS
 from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -17,6 +17,7 @@ HEIGHT = 960
 FPS = 15
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 VIDEOS_DIR = "videos"
 IMAGES_DIR = "imagens"
@@ -28,67 +29,128 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
 # =========================
-# ROTEIROS
+# GERAR ROTEIRO COM IA
 # =========================
 
-def criar_roteiro(tema, estilo):
+def gerar_roteiro_ia(tema, estilo, duracao):
 
-    if estilo == "Motivacional":
-        return [
-            f"Hoje vamos falar sobre {tema}.",
-            f"Quando o assunto é {tema}, muita gente acaba desistindo cedo demais.",
-            "Mas os resultados aparecem quando você mantém a constância.",
-            "Continue avançando um passo de cada vez."
-        ]
+    if not OPENAI_API_KEY:
+        raise Exception("OPENAI_API_KEY não configurada no Railway.")
 
-    if estilo == "Dinheiro":
-        return [
-            f"Hoje vamos falar sobre {tema}.",
-            "Antes de buscar resultados, é importante entender como as coisas funcionam.",
-            "Conhecimento e planejamento podem ajudar nas suas decisões.",
-            "Aprenda, pratique e evolua todos os dias."
-        ]
+    prompt = f"""
+Crie um roteiro curto para um vídeo vertical de Instagram Reels/TikTok.
 
-    if estilo == "Curiosidades":
-        return [
-            f"Você conhece essas curiosidades sobre {tema}?",
-            "Existem informações muito interessantes que poucas pessoas conhecem.",
-            f"Quando pesquisamos mais sobre {tema}, encontramos detalhes surpreendentes.",
-            "Agora você já conhece mais uma curiosidade."
-        ]
+Tema: {tema}
+Estilo: {estilo}
+Duração aproximada: {duracao} segundos.
 
-    if estilo == "Futebol":
-        return [
-            f"Hoje vamos falar sobre {tema}.",
-            "O futebol é cheio de histórias e momentos marcantes.",
-            f"Quando pesquisamos sobre {tema}, encontramos fatos muito interessantes.",
-            "Você já conhecia essa história?"
-        ]
+Regras:
+- Escreva em português do Brasil.
+- Comece com um gancho muito forte.
+- O texto precisa prender a atenção.
+- Use frases naturais, como uma pessoa falando.
+- Não use títulos.
+- Não use emojis.
+- Não use tópicos.
+- Não diga "neste vídeo".
+- Não diga "curta e compartilhe".
+- Não invente estatísticas.
+- Termine com uma frase marcante.
+- Escreva somente o texto que será narrado.
+"""
 
-    if estilo == "História":
-        return [
-            f"Hoje vamos conhecer um pouco da história de {tema}.",
-            "O passado guarda acontecimentos que ajudam a entender o presente.",
-            f"A história de {tema} possui momentos muito interessantes.",
-            "Essa é mais uma história que merece ser conhecida."
-        ]
+    resposta = requests.post(
+        "https://api.openai.com/v1/responses",
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "gpt-5.6-luna",
+            "input": prompt
+        },
+        timeout=60
+    )
 
-    return [
-        f"Hoje vamos falar sobre {tema}.",
-        f"Existem muitas informações interessantes sobre {tema}.",
-        "Continue acompanhando para descobrir mais.",
-        "Até o próximo vídeo."
-    ]
+    if resposta.status_code != 200:
+        raise Exception(
+            f"Erro OpenAI: {resposta.status_code} - {resposta.text[:500]}"
+        )
+
+    dados = resposta.json()
+
+    texto = dados.get("output_text")
+
+    if not texto:
+        # Fallback para estruturas diferentes da resposta
+        partes = []
+
+        for item in dados.get("output", []):
+            for content in item.get("content", []):
+                if content.get("type") == "output_text":
+                    partes.append(content.get("text", ""))
+
+        texto = " ".join(partes)
+
+    texto = texto.strip()
+
+    if not texto:
+        raise Exception("A IA não retornou um roteiro.")
+
+    return texto
 
 
 # =========================
-# BUSCAR IMAGENS
+# GERAR NARRAÇÃO
+# =========================
+
+def gerar_narracao(texto):
+
+    if not OPENAI_API_KEY:
+        raise Exception("OPENAI_API_KEY não configurada.")
+
+    caminho = os.path.join(AUDIO_DIR, "narracao.mp3")
+
+    resposta = requests.post(
+        "https://api.openai.com/v1/audio/speech",
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "gpt-4o-mini-tts",
+            "voice": "coral",
+            "input": texto,
+            "instructions": (
+                "Fale em português do Brasil. "
+                "Use uma voz natural, clara e envolvente, "
+                "com ritmo de narrador de vídeos curtos para redes sociais. "
+                "Faça pausas naturais e dê ênfase às partes importantes."
+            ),
+            "response_format": "mp3"
+        },
+        timeout=120
+    )
+
+    if resposta.status_code != 200:
+        raise Exception(
+            f"Erro TTS: {resposta.status_code} - {resposta.text[:500]}"
+        )
+
+    with open(caminho, "wb") as arquivo:
+        arquivo.write(resposta.content)
+
+    return caminho
+
+
+# =========================
+# BUSCAR IMAGENS NO PEXELS
 # =========================
 
 def buscar_imagens(tema):
 
     if not PEXELS_API_KEY:
-        raise Exception("PEXELS_API_KEY não encontrada.")
+        raise Exception("PEXELS_API_KEY não configurada no Railway.")
 
     url = "https://api.pexels.com/v1/search"
 
@@ -98,7 +160,7 @@ def buscar_imagens(tema):
 
     params = {
         "query": tema,
-        "per_page": 4,
+        "per_page": 8,
         "orientation": "portrait"
     }
 
@@ -111,35 +173,33 @@ def buscar_imagens(tema):
 
     if resposta.status_code != 200:
         raise Exception(
-            f"Erro Pexels: {resposta.status_code}"
+            f"Erro Pexels: {resposta.status_code} - {resposta.text[:500]}"
         )
 
     dados = resposta.json()
 
-    fotos = dados.get("photos", [])
+    imagens = []
 
-    if not fotos:
-        raise Exception("Nenhuma imagem encontrada.")
-
-    links = []
-
-    for foto in fotos:
+    for foto in dados.get("photos", []):
 
         src = foto.get("src", {})
 
         link = (
-            src.get("large")
+            src.get("large2x")
+            or src.get("large")
             or src.get("medium")
             or src.get("original")
         )
 
         if link:
-            links.append(link)
+            imagens.append(link)
 
-    if not links:
-        raise Exception("Nenhuma imagem disponível.")
+    if not imagens:
+        raise Exception("Nenhuma imagem encontrada no Pexels.")
 
-    return links[:4]
+    random.shuffle(imagens)
+
+    return imagens[:5]
 
 
 # =========================
@@ -148,82 +208,79 @@ def buscar_imagens(tema):
 
 def preparar_imagem(url, numero):
 
-    caminho = os.path.join(
-        IMAGES_DIR,
-        f"imagem_{numero}.jpg"
-    )
-
     resposta = requests.get(
         url,
         timeout=30
     )
 
     if resposta.status_code != 200:
-        raise Exception("Erro ao baixar imagem.")
+        raise Exception("Não foi possível baixar uma imagem do Pexels.")
 
-    with open(caminho, "wb") as arquivo:
+    original = os.path.join(
+        IMAGES_DIR,
+        f"original_{numero}.jpg"
+    )
+
+    preparada = os.path.join(
+        IMAGES_DIR,
+        f"imagem_{numero}.jpg"
+    )
+
+    with open(original, "wb") as arquivo:
         arquivo.write(resposta.content)
 
-    from PIL import Image
+    imagem = Image.open(original).convert("RGB")
 
-    imagem = Image.open(caminho).convert("RGB")
+    # Ajusta para o formato vertical
+    proporcao_destino = WIDTH / HEIGHT
+    proporcao_original = imagem.width / imagem.height
 
-    # Tamanho vertical 9:16
-    imagem.thumbnail(
-        (WIDTH, HEIGHT),
-        Image.Resampling.LANCZOS
+    if proporcao_original > proporcao_destino:
+
+        nova_altura = HEIGHT
+
+        nova_largura = int(
+            imagem.width * nova_altura / imagem.height
+        )
+
+    else:
+
+        nova_largura = WIDTH
+
+        nova_altura = int(
+            imagem.height * nova_largura / imagem.width
+        )
+
+    imagem = imagem.resize(
+        (nova_largura, nova_altura),
+        Image.LANCZOS
     )
 
-    fundo = Image.new(
-        "RGB",
-        (WIDTH, HEIGHT),
-        "black"
+    # Recorte central
+    esquerda = max(
+        0,
+        (imagem.width - WIDTH) // 2
     )
 
-    x = (WIDTH - imagem.width) // 2
-    y = (HEIGHT - imagem.height) // 2
-
-    fundo.paste(
-        imagem,
-        (x, y)
+    topo = max(
+        0,
+        (imagem.height - HEIGHT) // 2
     )
 
-    fundo.save(
-        caminho,
+    direita = esquerda + WIDTH
+    baixo = topo + HEIGHT
+
+    imagem = imagem.crop(
+        (esquerda, topo, direita, baixo)
+    )
+
+    imagem.save(
+        preparada,
         "JPEG",
         quality=85
     )
 
-    return caminho
-
-
-# =========================
-# GERAR VOZ
-# =========================
-
-def gerar_narracao(roteiro):
-
-    texto = " ".join(roteiro)
-
-    caminho = os.path.join(
-        AUDIO_DIR,
-        "narracao.mp3"
-    )
-
-    print("Gerando narração...")
-
-    voz = gTTS(
-        text=texto,
-        lang="pt-br",
-        slow=False
-    )
-
-    voz.save(caminho)
-
-    if not os.path.exists(caminho):
-        raise Exception("A narração não foi criada.")
-
-    return caminho
+    return preparada
 
 
 # =========================
@@ -232,100 +289,93 @@ def gerar_narracao(roteiro):
 
 def criar_video(tema, estilo, duracao):
 
-    print("Criando roteiro...")
-
-    roteiro = criar_roteiro(
+    # 1. Cria roteiro
+    roteiro = gerar_roteiro_ia(
         tema,
-        estilo
+        estilo,
+        duracao
     )
 
-    print("Buscando imagens...")
+    # 2. Busca imagens
+    links_imagens = buscar_imagens(tema)
 
-    imagens = buscar_imagens(
-        tema
-    )
+    # 3. Cria narração
+    caminho_audio = gerar_narracao(roteiro)
 
-    print("Gerando narração...")
+    audio = AudioFileClip(caminho_audio)
 
-    caminho_audio = gerar_narracao(
-        roteiro
-    )
+    duracao_audio = audio.duration
 
-    audio = AudioFileClip(
-        caminho_audio
-    )
-
-    duracao_audio = float(
-        audio.duration
-    )
-
-    # O vídeo acompanha a narração.
-    duracao_video = max(
+    # Usa a duração da narração.
+    # Se for menor que o solicitado, mantém a duração escolhida.
+    duracao_final = max(
         float(duracao),
-        duracao_audio
+        float(duracao_audio)
     )
 
     # Limite de segurança
-    if duracao_video > duracao + 5:
-        duracao_video = float(duracao + 5)
+    duracao_final = min(
+        duracao_final,
+        float(duracao) + 8
+    )
 
-    tempo_por_imagem = (
-        duracao_video / len(imagens)
+    # Quantidade de imagens
+    quantidade = min(
+        len(links_imagens),
+        5
+    )
+
+    duracao_por_imagem = (
+        duracao_final / quantidade
     )
 
     clips = []
 
-    for i, url in enumerate(imagens):
+    for i in range(quantidade):
 
-        print(
-            f"Preparando imagem {i + 1}..."
-        )
-
-        caminho = preparar_imagem(
-            url,
+        caminho_imagem = preparar_imagem(
+            links_imagens[i],
             i
         )
 
-        clip = ImageClip(
-            caminho
-        ).with_duration(
-            tempo_por_imagem
+        clip = (
+            ImageClip(caminho_imagem)
+            .with_duration(duracao_por_imagem)
         )
 
         clips.append(clip)
-
-    print("Montando vídeo...")
 
     video = concatenate_videoclips(
         clips,
         method="compose"
     )
 
-    # Ajustar o áudio ao vídeo
-    if audio.duration > video.duration:
+    # Ajusta exatamente à duração final
+    if video.duration > duracao_final:
+        video = video.subclipped(
+            0,
+            duracao_final
+        )
 
-        audio = audio.subclipped(
+    # Coloca somente a narração
+    audio_final = audio
+
+    if audio.duration > video.duration:
+        audio_final = audio.subclipped(
             0,
             video.duration
         )
 
-    # SOMENTE NARRAÇÃO
     video = video.with_audio(
-        audio
+        audio_final
     )
 
-    nome = (
-        "reel_"
-        + str(random.randint(10000, 99999))
-        + ".mp4"
-    )
+    nome_video = "reel_automatico.mp4"
 
     caminho_final = os.path.join(
         VIDEOS_DIR,
-        nome
+        nome_video
     )
-
-    print("Renderizando MP4...")
 
     video.write_videofile(
         caminho_final,
@@ -337,27 +387,23 @@ def criar_video(tema, estilo, duracao):
         logger=None
     )
 
-    try:
-        video.close()
-    except:
-        pass
+    video.close()
 
-    try:
-        audio.close()
-    except:
-        pass
+    if audio_final != audio:
+        audio_final.close()
 
-    return caminho_final
+    audio.close()
+
+    return nome_video, roteiro
 
 
 # =========================
-# PÁGINA
+# INTERFACE
 # =========================
 
 HTML = """
 <!DOCTYPE html>
-
-<html lang="pt-br">
+<html lang="pt-BR">
 
 <head>
 
@@ -366,16 +412,15 @@ HTML = """
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0">
 
-<title>Reel Maker</title>
+<title>Gerador de Reels IA</title>
 
 <style>
 
 body {
+    font-family: Arial, sans-serif;
     background: #111;
     color: white;
-    font-family: Arial, sans-serif;
-    text-align: center;
-    padding: 30px;
+    padding: 25px;
 }
 
 .container {
@@ -383,39 +428,54 @@ body {
     margin: auto;
 }
 
-input,
-select,
-button {
+h1 {
+    text-align: center;
+}
 
+input, select, button {
     width: 100%;
-    box-sizing: border-box;
-
-    padding: 15px;
-    margin: 10px 0;
-
+    padding: 14px;
+    margin-top: 10px;
+    margin-bottom: 15px;
     border-radius: 8px;
     border: none;
-
-    font-size: 16px;
+    box-sizing: border-box;
 }
 
 button {
-
     background: #00c853;
     color: white;
-
+    font-size: 18px;
     font-weight: bold;
-
     cursor: pointer;
 }
 
-.info {
+button:hover {
+    background: #00a844;
+}
 
-    margin-top: 20px;
-    padding: 15px;
+.caixa {
+    background: #1e1e1e;
+    padding: 20px;
+    border-radius: 15px;
+}
 
+.resultado {
     background: #222;
+    padding: 15px;
     border-radius: 10px;
+    margin-top: 20px;
+}
+
+a {
+    display: block;
+    text-align: center;
+    background: #2196f3;
+    color: white;
+    padding: 14px;
+    border-radius: 8px;
+    text-decoration: none;
+    margin-top: 15px;
 }
 
 </style>
@@ -426,88 +486,82 @@ button {
 
 <div class="container">
 
-<h1>🎬 Reel Maker</h1>
+<h1>🎬 Gerador de Reels IA</h1>
 
-<p>
-Imagens + narração automática
-</p>
+<div class="caixa">
 
 <form method="POST">
 
+<label>Tema do vídeo</label>
+
 <input
-    type="text"
-    name="tema"
-    placeholder="Digite o tema"
-    required
+type="text"
+name="tema"
+placeholder="Ex: Como juntar dinheiro ganhando pouco"
+required
 >
+
+<label>Estilo</label>
 
 <select name="estilo">
 
-<option value="Motivacional">
-Motivacional
-</option>
-
-<option value="Dinheiro">
-Dinheiro
-</option>
-
-<option value="Curiosidades">
-Curiosidades
-</option>
-
-<option value="Futebol">
-Futebol
-</option>
-
-<option value="História">
-História
-</option>
+<option>Motivacional</option>
+<option>Dinheiro</option>
+<option>Curiosidades</option>
+<option>Futebol</option>
+<option>História</option>
+<option>Humor</option>
+<option>Desenvolvimento pessoal</option>
 
 </select>
 
+<label>Duração</label>
+
 <select name="duracao">
 
-<option value="10">
-10 segundos
-</option>
-
-<option value="15">
-15 segundos
-</option>
-
-<option value="30">
-30 segundos
-</option>
+<option value="10">10 segundos</option>
+<option value="15">15 segundos</option>
+<option value="30">30 segundos</option>
 
 </select>
 
 <button type="submit">
-🎙️ Criar Reel
+🎙️ CRIAR REEL
 </button>
 
 </form>
 
 {% if mensagem %}
 
-<div class="info">
+<div class="resultado">
 
-<p>{{ mensagem }}</p>
-
-{% if video %}
-
-<a href="/download/{{ video }}">
-
-<button>
-⬇️ Baixar vídeo
-</button>
-
-</a>
-
-{% endif %}
+{{ mensagem }}
 
 </div>
 
 {% endif %}
+
+{% if download %}
+
+<a href="/download/{{ download }}">
+⬇️ BAIXAR VÍDEO
+</a>
+
+{% endif %}
+
+{% if roteiro %}
+
+<div class="resultado">
+
+<strong>Roteiro criado:</strong>
+
+<p>{{ roteiro }}</p>
+
+</div>
+
+{% endif %}
+
+</div>
 
 </div>
 
@@ -524,73 +578,63 @@ História
 @app.route("/", methods=["GET", "POST"])
 def index():
 
-    mensagem = ""
-    video = None
+    mensagem = None
+    download = None
+    roteiro = None
 
     if request.method == "POST":
 
-        tema = request.form.get(
-            "tema",
-            ""
-        ).strip()
-
-        estilo = request.form.get(
-            "estilo",
-            "Motivacional"
-        )
-
         try:
+
+            tema = request.form.get(
+                "tema",
+                ""
+            ).strip()
+
+            estilo = request.form.get(
+                "estilo",
+                "Motivacional"
+            )
+
             duracao = int(
                 request.form.get(
                     "duracao",
-                    10
+                    "15"
                 )
             )
-        except:
-            duracao = 10
 
-        if not tema:
-
-            mensagem = "Digite um tema."
-
-        else:
-
-            try:
-
-                mensagem = (
-                    "🎙️ Criando seu vídeo..."
+            if not tema:
+                raise Exception(
+                    "Digite um tema."
                 )
 
-                caminho = criar_video(
-                    tema,
-                    estilo,
-                    duracao
-                )
+            mensagem = (
+                "Criando roteiro, "
+                "narração, imagens e vídeo..."
+            )
 
-                video = os.path.basename(
-                    caminho
-                )
+            download, roteiro = criar_video(
+                tema,
+                estilo,
+                duracao
+            )
 
-                mensagem = (
-                    "✅ Vídeo criado com sucesso!"
-                )
+            mensagem = (
+                "Reel criado com sucesso!"
+            )
 
-            except Exception as erro:
+        except Exception as erro:
 
-                mensagem = (
-                    "❌ Erro: "
-                    + str(erro)
-                )
-
-                print(
-                    "ERRO:",
-                    erro
-                )
+            mensagem = (
+                "Erro ao criar o vídeo: "
+                + str(erro)
+            )
 
     return render_template_string(
         HTML,
         mensagem=mensagem,
-        video=video
+        download=download,
+        roteiro=roteiro
     )
 
 
@@ -599,7 +643,7 @@ def index():
 # =========================
 
 @app.route("/download/<nome>")
-def download(nome):
+def download_video(nome):
 
     caminho = os.path.join(
         VIDEOS_DIR,
@@ -616,17 +660,19 @@ def download(nome):
 
 
 # =========================
-# SERVIDOR
+# INICIAR SERVIDOR
 # =========================
 
 if __name__ == "__main__":
 
+    porta = int(
+        os.environ.get(
+            "PORT",
+            8080
+        )
+    )
+
     app.run(
         host="0.0.0.0",
-        port=int(
-            os.environ.get(
-                "PORT",
-                8080
-            )
-        )
+        port=porta
     )
