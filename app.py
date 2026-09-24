@@ -18,25 +18,32 @@ HTML = """
 
     <style>
         body {
-            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
             background: #111;
             color: white;
-            padding: 20px;
-            text-align: center;
+            font-family: Arial, sans-serif;
         }
 
         .box {
             max-width: 500px;
             margin: auto;
+            text-align: center;
         }
 
-        input, select, button {
+        h1 {
+            margin-bottom: 30px;
+        }
+
+        input,
+        select,
+        button {
             width: 100%;
-            padding: 14px;
-            margin: 10px 0;
+            padding: 15px;
+            margin: 8px 0;
             box-sizing: border-box;
-            border-radius: 8px;
             border: none;
+            border-radius: 8px;
             font-size: 16px;
         }
 
@@ -44,10 +51,15 @@ HTML = """
             background: #ff0050;
             color: white;
             font-weight: bold;
+            cursor: pointer;
         }
 
-        .msg {
-            margin-top: 20px;
+        button:hover {
+            opacity: 0.85;
+        }
+
+        .resultado {
+            margin-top: 25px;
         }
     </style>
 </head>
@@ -63,9 +75,17 @@ HTML = """
         <input
             type="text"
             name="tema"
-            placeholder="Digite o tema"
+            placeholder="Digite o tema do vídeo"
             required
         >
+
+        <select name="estilo">
+            <option value="motivacional">🔥 Motivacional</option>
+            <option value="dinheiro">💰 Dinheiro</option>
+            <option value="curiosidades">🤯 Curiosidades</option>
+            <option value="futebol">⚽ Futebol</option>
+            <option value="historia">📖 História</option>
+        </select>
 
         <select name="duracao">
             <option value="10">10 segundos - teste</option>
@@ -74,26 +94,35 @@ HTML = """
         </select>
 
         <button type="submit">
-            🚀 GERAR VÍDEO
+            🚀 GERAR REEL
         </button>
 
     </form>
 
     {% if video %}
-        <div class="msg">
-            <h2>✅ Vídeo criado!</h2>
 
-            <a href="/baixar/{{ video }}">
-                <button>⬇️ BAIXAR VÍDEO</button>
-            </a>
-        </div>
+    <div class="resultado">
+
+        <h2>✅ Reel criado!</h2>
+
+        <a href="/baixar/{{ video }}">
+            <button>⬇️ BAIXAR REEL</button>
+        </a>
+
+    </div>
+
     {% endif %}
 
     {% if erro %}
-        <div class="msg">
-            <h2>❌ Erro</h2>
-            <p>{{ erro }}</p>
-        </div>
+
+    <div class="resultado">
+
+        <h2>❌ Erro</h2>
+
+        <p>{{ erro }}</p>
+
+    </div>
+
     {% endif %}
 
 </div>
@@ -112,6 +141,7 @@ def home():
 def gerar():
 
     tema = request.form.get("tema", "Meu vídeo")
+    estilo = request.form.get("estilo", "motivacional")
     duracao = int(request.form.get("duracao", 10))
 
     nome = f"{uuid.uuid4().hex}.mp4"
@@ -119,29 +149,68 @@ def gerar():
 
     try:
 
-        # Resolução reduzida para evitar falta de memória
+        # Resolução otimizada para o Railway
         largura = 540
         altura = 960
 
+        # Fundos diferentes por estilo
+        fundos = {
+            "motivacional": (20, 20, 20),
+            "dinheiro": (15, 40, 20),
+            "curiosidades": (30, 20, 50),
+            "futebol": (10, 50, 25),
+            "historia": (45, 30, 15)
+        }
+
+        cor_fundo = fundos.get(
+            estilo,
+            (20, 20, 20)
+        )
+
         fundo = ColorClip(
             size=(largura, altura),
-            color=(15, 15, 15),
+            color=cor_fundo,
             duration=duracao
         )
 
-        texto = TextClip(
+        titulo = TextClip(
             text=tema,
-            font_size=50,
+            font_size=55,
             color="white",
-            size=(460, 300),
+            size=(460, 350),
             method="caption"
         )
 
-        texto = texto.with_position("center")
-        texto = texto.with_duration(duracao)
+        titulo = titulo.with_duration(duracao)
+
+        # Entrada suave
+        titulo = titulo.with_position(
+            lambda t: (
+                "center",
+                int(altura / 2 - 175 + max(0, 80 - t * 80))
+            )
+        )
+
+        # Texto inferior
+        rodape = TextClip(
+            text="@ReelMaker",
+            font_size=28,
+            color="white",
+            size=(400, 60),
+            method="caption"
+        )
+
+        rodape = rodape.with_duration(duracao)
+        rodape = rodape.with_position(
+            ("center", 850)
+        )
 
         video = CompositeVideoClip(
-            [fundo, texto],
+            [
+                fundo,
+                titulo,
+                rodape
+            ],
             size=(largura, altura)
         )
 
@@ -157,7 +226,8 @@ def gerar():
 
         video.close()
         fundo.close()
-        texto.close()
+        titulo.close()
+        rodape.close()
 
         return render_template_string(
             HTML,
@@ -175,7 +245,10 @@ def gerar():
 @app.route("/baixar/<nome>")
 def baixar(nome):
 
-    caminho = os.path.join(VIDEO_DIR, nome)
+    caminho = os.path.join(
+        VIDEO_DIR,
+        nome
+    )
 
     if not os.path.exists(caminho):
         return "Vídeo não encontrado.", 404
@@ -191,5 +264,10 @@ if __name__ == "__main__":
 
     app.run(
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080))
+        port=int(
+            os.environ.get(
+                "PORT",
+                8080
+            )
+        )
     )
