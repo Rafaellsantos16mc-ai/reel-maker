@@ -21,27 +21,22 @@ HTML = """
             font-family: Arial, sans-serif;
             background: #111;
             color: white;
-            margin: 0;
             padding: 20px;
+            text-align: center;
         }
 
-        .container {
+        .box {
             max-width: 500px;
             margin: auto;
-        }
-
-        h1 {
-            text-align: center;
         }
 
         input, select, button {
             width: 100%;
             padding: 14px;
-            margin-top: 10px;
-            margin-bottom: 15px;
+            margin: 10px 0;
+            box-sizing: border-box;
             border-radius: 8px;
             border: none;
-            box-sizing: border-box;
             font-size: 16px;
         }
 
@@ -49,48 +44,33 @@ HTML = """
             background: #ff0050;
             color: white;
             font-weight: bold;
-            cursor: pointer;
         }
 
-        button:hover {
-            opacity: 0.9;
-        }
-
-        .resultado {
+        .msg {
             margin-top: 20px;
-            text-align: center;
-        }
-
-        a {
-            color: white;
-            text-decoration: none;
         }
     </style>
 </head>
 
 <body>
 
-<div class="container">
+<div class="box">
 
     <h1>🎬 REEL MAKER</h1>
 
     <form action="/gerar" method="POST">
 
-        <label>Digite o tema do vídeo:</label>
-
         <input
             type="text"
             name="tema"
-            placeholder="Ex: Como ficar rico"
+            placeholder="Digite o tema"
             required
         >
 
-        <label>Duração:</label>
-
         <select name="duracao">
+            <option value="10">10 segundos - teste</option>
+            <option value="15">15 segundos</option>
             <option value="30">30 segundos</option>
-            <option value="45">45 segundos</option>
-            <option value="60">60 segundos</option>
         </select>
 
         <button type="submit">
@@ -100,12 +80,19 @@ HTML = """
     </form>
 
     {% if video %}
-        <div class="resultado">
+        <div class="msg">
             <h2>✅ Vídeo criado!</h2>
 
             <a href="/baixar/{{ video }}">
                 <button>⬇️ BAIXAR VÍDEO</button>
             </a>
+        </div>
+    {% endif %}
+
+    {% if erro %}
+        <div class="msg">
+            <h2>❌ Erro</h2>
+            <p>{{ erro }}</p>
         </div>
     {% endif %}
 
@@ -125,51 +112,64 @@ def home():
 def gerar():
 
     tema = request.form.get("tema", "Meu vídeo")
-    duracao = int(request.form.get("duracao", 30))
+    duracao = int(request.form.get("duracao", 10))
 
     nome = f"{uuid.uuid4().hex}.mp4"
     caminho = os.path.join(VIDEO_DIR, nome)
 
-    largura = 1080
-    altura = 1920
+    try:
 
-    fundo = ColorClip(
-        size=(largura, altura),
-        color=(15, 15, 15),
-        duration=duracao
-    )
+        # Resolução reduzida para evitar falta de memória
+        largura = 540
+        altura = 960
 
-    texto = TextClip(
-        text=tema,
-        font_size=80,
-        color="white",
-        size=(900, None),
-        method="caption"
-    )
+        fundo = ColorClip(
+            size=(largura, altura),
+            color=(15, 15, 15),
+            duration=duracao
+        )
 
-    texto = texto.with_position("center").with_duration(duracao)
+        texto = TextClip(
+            text=tema,
+            font_size=50,
+            color="white",
+            size=(460, 300),
+            method="caption"
+        )
 
-    video = CompositeVideoClip(
-        [fundo, texto],
-        size=(largura, altura)
-    )
+        texto = texto.with_position("center")
+        texto = texto.with_duration(duracao)
 
-    video.write_videofile(
-        caminho,
-        fps=30,
-        codec="libx264",
-        audio=False,
-        logger=None
-    )
+        video = CompositeVideoClip(
+            [fundo, texto],
+            size=(largura, altura)
+        )
 
-    video.close()
-    fundo.close()
-    texto.close()
+        video.write_videofile(
+            caminho,
+            fps=15,
+            codec="libx264",
+            audio=False,
+            preset="ultrafast",
+            threads=1,
+            logger=None
+        )
 
-    return render_template_string(
-        HTML,
-        video=nome
-    )
+        video.close()
+        fundo.close()
+        texto.close()
+
+        return render_template_string(
+            HTML,
+            video=nome
+        )
+
+    except Exception as e:
+
+        return render_template_string(
+            HTML,
+            erro=str(e)
+        )
 
 
 @app.route("/baixar/<nome>")
@@ -188,6 +188,7 @@ def baixar(nome):
 
 
 if __name__ == "__main__":
+
     app.run(
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 8080))
