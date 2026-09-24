@@ -1,197 +1,81 @@
-from flask import Flask, request, send_file, render_template_string
-from moviepy import ImageClip, TextClip, CompositeVideoClip, concatenate_videoclips
-import requests
 import os
-import uuid
-from PIL import Image
+import random
+import requests
+
+from flask import Flask, request, render_template_string, send_file
+from moviepy import ImageClip, TextClip, CompositeVideoClip, concatenate_videoclips
+from moviepy import AudioFileClip
 
 app = Flask(__name__)
 
-VIDEO_DIR = "videos"
-IMAGE_DIR = "images"
+# =========================
+# CONFIGURAÇÕES
+# =========================
 
-os.makedirs(VIDEO_DIR, exist_ok=True)
-os.makedirs(IMAGE_DIR, exist_ok=True)
+LARGURA = 540
+ALTURA = 960
+FPS = 15
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
 
-WIDTH = 540
-HEIGHT = 960
-FPS = 15
+PASTA_VIDEOS = "videos"
+PASTA_IMAGENS = "imagens"
+PASTA_MUSICAS = "music"
+
+os.makedirs(PASTA_VIDEOS, exist_ok=True)
+os.makedirs(PASTA_IMAGENS, exist_ok=True)
+os.makedirs(PASTA_MUSICAS, exist_ok=True)
 
 
-HTML = """
-<!DOCTYPE html>
-<html lang="pt-BR">
+# =========================
+# FRASES
+# =========================
 
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+def criar_frases(tema, estilo):
 
-<title>Reel Maker</title>
+    frases = {
+        "Motivacional": [
+            f"Não desista de {tema}.",
+            "Continue mesmo quando estiver difícil.",
+            "O resultado vem para quem continua."
+        ],
 
-<style>
+        "Dinheiro": [
+            f"Quer aprender mais sobre {tema}?",
+            "Conhecimento pode abrir novas oportunidades.",
+            "Comece pequeno e evolua todos os dias."
+        ],
 
-body {
-    margin: 0;
-    padding: 20px;
-    background: #111;
-    color: white;
-    font-family: Arial, sans-serif;
-}
+        "Curiosidades": [
+            f"Você sabia disso sobre {tema}?",
+            "Essa informação pode surpreender você.",
+            "Compartilhe com alguém que precisa saber."
+        ],
 
-.box {
-    max-width: 500px;
-    margin: auto;
-    text-align: center;
-}
+        "Futebol": [
+            f"Você sabia disso sobre {tema}?",
+            "O futebol sempre tem uma história interessante.",
+            "Você conhecia essa curiosidade?"
+        ],
 
-h1 {
-    margin-bottom: 30px;
-}
+        "História": [
+            f"Você conhece a história de {tema}?",
+            "O passado guarda histórias incríveis.",
+            "Essa história merece ser conhecida."
+        ]
+    }
 
-input,
-select,
-button {
-
-    width: 100%;
-    padding: 15px;
-    margin: 8px 0;
-    box-sizing: border-box;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-}
-
-button {
-    background: #ff0050;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-button:hover {
-    opacity: 0.85;
-}
-
-.resultado {
-    margin-top: 25px;
-}
-
-</style>
-
-</head>
-
-<body>
-
-<div class="box">
-
-<h1>🎬 REEL MAKER</h1>
-
-<form action="/gerar" method="POST">
-
-<input
-    type="text"
-    name="tema"
-    placeholder="Digite o tema do vídeo"
-    required
->
-
-<select name="estilo">
-
-<option value="motivacional">
-🔥 Motivacional
-</option>
-
-<option value="dinheiro">
-💰 Dinheiro
-</option>
-
-<option value="curiosidades">
-🤯 Curiosidades
-</option>
-
-<option value="futebol">
-⚽ Futebol
-</option>
-
-<option value="historia">
-📖 História
-</option>
-
-</select>
-
-<select name="duracao">
-
-<option value="10">
-10 segundos - teste
-</option>
-
-<option value="15">
-15 segundos
-</option>
-
-<option value="30">
-30 segundos
-</option>
-
-</select>
-
-<button type="submit">
-🚀 GERAR REEL
-</button>
-
-</form>
-
-{% if video %}
-
-<div class="resultado">
-
-<h2>✅ Reel criado!</h2>
-
-<a href="/baixar/{{ video }}">
-
-<button>
-⬇️ BAIXAR REEL
-</button>
-
-</a>
-
-</div>
-
-{% endif %}
-
-{% if erro %}
-
-<div class="resultado">
-
-<h2>❌ Erro</h2>
-
-<p>{{ erro }}</p>
-
-</div>
-
-{% endif %}
-
-</div>
-
-</body>
-
-</html>
-"""
+    return frases.get(estilo, frases["Motivacional"])
 
 
-@app.route("/")
-def home():
-    return render_template_string(HTML)
-
+# =========================
+# BUSCAR IMAGENS PEXELS
+# =========================
 
 def buscar_imagens(tema):
 
     if not PEXELS_API_KEY:
-        raise Exception(
-            "PEXELS_API_KEY não configurada."
-        )
+        raise Exception("PEXELS_API_KEY não configurada.")
 
     url = "https://api.pexels.com/v1/search"
 
@@ -222,336 +106,576 @@ def buscar_imagens(tema):
     fotos = dados.get("photos", [])
 
     if not fotos:
-        raise Exception(
-            "Nenhuma imagem encontrada."
-        )
+        raise Exception("Nenhuma imagem encontrada.")
 
-    arquivos = []
+    imagens = []
 
     for foto in fotos:
 
-        imagem_url = foto["src"]["portrait"]
+        src = foto.get("src", {})
 
-        nome = f"{uuid.uuid4().hex}.jpg"
-
-        caminho = os.path.join(
-            IMAGE_DIR,
-            nome
+        link = (
+            src.get("large2x")
+            or src.get("large")
+            or src.get("original")
         )
 
-        resposta_imagem = requests.get(
-            imagem_url,
-            timeout=20
-        )
+        if link:
+            imagens.append(link)
 
-        if resposta_imagem.status_code != 200:
-            continue
-
-        with open(caminho, "wb") as arquivo:
-            arquivo.write(
-                resposta_imagem.content
-            )
-
-        arquivos.append(caminho)
-
-    if not arquivos:
-        raise Exception(
-            "Não foi possível baixar as imagens."
-        )
-
-    return arquivos
+    return imagens[:3]
 
 
-def preparar_imagem(caminho):
+# =========================
+# BAIXAR E PREPARAR IMAGEM
+# =========================
 
-    imagem = Image.open(caminho)
+def preparar_imagem(url, numero):
 
-    imagem = imagem.convert("RGB")
+    caminho = os.path.join(
+        PASTA_IMAGENS,
+        f"imagem_{numero}.jpg"
+    )
+
+    resposta = requests.get(
+        url,
+        timeout=30
+    )
+
+    if resposta.status_code != 200:
+        raise Exception("Erro ao baixar imagem.")
+
+    with open(caminho, "wb") as arquivo:
+        arquivo.write(resposta.content)
+
+    from PIL import Image
+
+    imagem = Image.open(caminho).convert("RGB")
+
+    # Ajusta para formato vertical 9:16
+    proporcao_desejada = LARGURA / ALTURA
+
+    largura_original, altura_original = imagem.size
 
     proporcao_original = (
-        imagem.width / imagem.height
+        largura_original / altura_original
     )
 
-    proporcao_video = (
-        WIDTH / HEIGHT
-    )
-
-    if proporcao_original > proporcao_video:
-
-        nova_altura = HEIGHT
+    if proporcao_original > proporcao_desejada:
 
         nova_largura = int(
-            nova_altura *
-            proporcao_original
+            altura_original * proporcao_desejada
+        )
+
+        esquerda = (
+            largura_original - nova_largura
+        ) // 2
+
+        imagem = imagem.crop(
+            (
+                esquerda,
+                0,
+                esquerda + nova_largura,
+                altura_original
+            )
         )
 
     else:
 
-        nova_largura = WIDTH
-
         nova_altura = int(
-            nova_largura /
-            proporcao_original
+            largura_original / proporcao_desejada
+        )
+
+        topo = (
+            altura_original - nova_altura
+        ) // 2
+
+        imagem = imagem.crop(
+            (
+                0,
+                topo,
+                largura_original,
+                topo + nova_altura
+            )
         )
 
     imagem = imagem.resize(
-        (nova_largura, nova_altura)
-    )
-
-    esquerda = (
-        nova_largura - WIDTH
-    ) // 2
-
-    cima = (
-        nova_altura - HEIGHT
-    ) // 2
-
-    imagem = imagem.crop(
-        (
-            esquerda,
-            cima,
-            esquerda + WIDTH,
-            cima + HEIGHT
-        )
+        (LARGURA, ALTURA)
     )
 
     imagem.save(
         caminho,
-        quality=80,
+        "JPEG",
+        quality=85,
         optimize=True
     )
 
+    return caminho
 
-def criar_frases(tema, estilo):
 
-    frases = {
+# =========================
+# ENCONTRAR MÚSICA
+# =========================
 
-        "motivacional": [
-            f"Você pode mudar sua vida com {tema}.",
-            "Comece hoje.",
-            "Não desista dos seus objetivos."
-        ],
+def encontrar_musica():
 
-        "dinheiro": [
-            f"Quer aprender sobre {tema}?",
-            "Conhecimento pode abrir novas oportunidades.",
-            "Comece estudando e evoluindo."
-        ],
+    extensoes = [
+        ".mp3",
+        ".wav",
+        ".m4a",
+        ".aac"
+    ]
 
-        "curiosidades": [
-            f"Você sabia disso sobre {tema}?",
-            "Essa informação pode surpreender você.",
-            "Agora você já sabe!"
-        ],
+    arquivos = []
 
-        "futebol": [
-            f"Você conhece essa história do {tema}?",
-            "O futebol sempre tem grandes histórias.",
-            "Compartilhe com quem gosta de futebol."
-        ],
+    for nome in os.listdir(PASTA_MUSICAS):
 
-        "historia": [
-            f"Conheça essa história sobre {tema}.",
-            "O passado ajuda a entender o presente.",
-            "Você já conhecia essa história?"
-        ]
+        caminho = os.path.join(
+            PASTA_MUSICAS,
+            nome
+        )
 
-    }
+        if os.path.isfile(caminho):
 
-    return frases.get(
-        estilo,
-        [
-            f"Você conhece {tema}?",
-            "Continue acompanhando.",
-            "Até o próximo vídeo!"
-        ]
+            extensao = os.path.splitext(
+                nome
+            )[1].lower()
+
+            if extensao in extensoes:
+                arquivos.append(caminho)
+
+    if not arquivos:
+        return None
+
+    return random.choice(arquivos)
+
+
+# =========================
+# CRIAR VÍDEO
+# =========================
+
+def criar_video(
+    tema,
+    estilo,
+    duracao
+):
+
+    imagens_urls = buscar_imagens(tema)
+
+    frases = criar_frases(
+        tema,
+        estilo
     )
 
+    quantidade_cenas = len(imagens_urls)
 
-@app.route("/gerar", methods=["POST"])
-def gerar():
+    duracao_cena = duracao / quantidade_cenas
 
-    tema = request.form.get(
-        "tema",
-        "Meu vídeo"
+    cenas = []
+
+    for i, url in enumerate(imagens_urls):
+
+        caminho_imagem = preparar_imagem(
+            url,
+            i
+        )
+
+        imagem = ImageClip(
+            caminho_imagem
+        ).with_duration(
+            duracao_cena
+        )
+
+        # Zoom suave
+        imagem = imagem.resized(
+            lambda t: 1 + (0.03 * t)
+        )
+
+        # Texto
+        texto = TextClip(
+            text=frases[i],
+            font_size=42,
+            color="white",
+            stroke_color="black",
+            stroke_width=3,
+            method="caption",
+            size=(460, 220),
+            text_align="center"
+        )
+
+        texto = texto.with_duration(
+            duracao_cena
+        )
+
+        texto = texto.with_position(
+            ("center", "center")
+        )
+
+        cena = CompositeVideoClip(
+            [
+                imagem,
+                texto
+            ],
+            size=(LARGURA, ALTURA)
+        )
+
+        cenas.append(cena)
+
+    video = concatenate_videoclips(
+        cenas,
+        method="compose"
     )
 
-    estilo = request.form.get(
-        "estilo",
-        "motivacional"
-    )
+    # =========================
+    # MÚSICA
+    # =========================
 
-    duracao = int(
-        request.form.get(
-            "duracao",
-            10
-        )
-    )
+    caminho_musica = encontrar_musica()
 
-    nome = f"{uuid.uuid4().hex}.mp4"
+    audio = None
 
-    caminho_video = os.path.join(
-        VIDEO_DIR,
-        nome
-    )
+    if caminho_musica:
 
-    clips = []
+        try:
 
-    try:
-
-        imagens = buscar_imagens(tema)
-
-        frases = criar_frases(
-            tema,
-            estilo
-        )
-
-        tempo_por_imagem = (
-            duracao / len(imagens)
-        )
-
-        for i, caminho_imagem in enumerate(imagens):
-
-            preparar_imagem(
-                caminho_imagem
+            audio = AudioFileClip(
+                caminho_musica
             )
 
-            clip = ImageClip(
-                caminho_imagem
-            )
+            # Se a música for maior que o vídeo,
+            # corta no tamanho do vídeo.
+            if audio.duration > duracao:
 
-            clip = clip.with_duration(
-                tempo_por_imagem
-            )
+                audio = audio.subclipped(
+                    0,
+                    duracao
+                )
 
-            # Zoom suave
-            clip = clip.resized(
-                lambda t: 1 + (0.03 * t)
-            )
+            else:
 
-            clip = clip.with_position(
-                "center"
-            )
-
-            texto = TextClip(
-
-                text=frases[
-                    i % len(frases)
-                ],
-
-                font_size=38,
-
-                color="white",
-
-                size=(460, 180),
-
-                method="caption"
-
-            )
-
-            texto = texto.with_duration(
-                tempo_por_imagem
-            )
-
-            texto = texto.with_position(
-                ("center", 680)
-            )
-
-            cena = CompositeVideoClip(
-                [
-                    clip,
-                    texto
-                ],
-                size=(WIDTH, HEIGHT)
-            )
-
-            clips.append(cena)
-
-        video = concatenate_videoclips(
-            clips,
-            method="compose"
-        )
-
-        video.write_videofile(
-
-            caminho_video,
-
-            fps=FPS,
-
-            codec="libx264",
-
-            audio=False,
-
-            preset="ultrafast",
-
-            threads=1,
-
-            logger=None
-
-        )
-
-        video.close()
-
-        for clip in clips:
-            clip.close()
-
-        return render_template_string(
-            HTML,
-            video=nome
-        )
-
-    except Exception as e:
-
-        for clip in clips:
-
-            try:
-                clip.close()
-            except:
+                # Se for menor, ela será usada
+                # até terminar.
                 pass
 
-        return render_template_string(
-            HTML,
-            erro=str(e)
+            # Volume da música
+            audio = audio.with_volume_scaled(
+                0.20
+            )
+
+            video = video.with_audio(
+                audio
+            )
+
+        except Exception as erro:
+
+            print(
+                f"Erro ao adicionar música: {erro}"
+            )
+
+    # =========================
+    # SALVAR
+    # =========================
+
+    nome_arquivo = (
+        "reel_"
+        + str(random.randint(10000, 99999))
+        + ".mp4"
+    )
+
+    caminho_video = os.path.join(
+        PASTA_VIDEOS,
+        nome_arquivo
+    )
+
+    video.write_videofile(
+        caminho_video,
+        fps=FPS,
+        codec="libx264",
+        audio=audio is not None,
+        preset="ultrafast",
+        threads=1,
+        logger=None
+    )
+
+    # Fecha recursos
+    try:
+        video.close()
+    except:
+        pass
+
+    try:
+        if audio:
+            audio.close()
+    except:
+        pass
+
+    return caminho_video
+
+
+# =========================
+# PÁGINA
+# =========================
+
+HTML = """
+<!DOCTYPE html>
+
+<html lang="pt-br">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>Reel Maker</title>
+
+<style>
+
+body {
+    background: #111;
+    color: white;
+    font-family: Arial;
+    text-align: center;
+    padding: 30px;
+}
+
+.container {
+    max-width: 500px;
+    margin: auto;
+}
+
+input,
+select,
+button {
+
+    width: 100%;
+    padding: 15px;
+    margin: 10px 0;
+
+    border-radius: 8px;
+    border: none;
+
+    font-size: 16px;
+}
+
+button {
+
+    background: #00c853;
+    color: white;
+    font-weight: bold;
+
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.info {
+
+    margin-top: 20px;
+    padding: 15px;
+
+    background: #222;
+    border-radius: 10px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🎬 Reel Maker</h1>
+
+<p>
+Crie vídeos para Reels e TikTok automaticamente.
+</p>
+
+<form method="POST">
+
+<input
+    type="text"
+    name="tema"
+    placeholder="Digite o tema do vídeo"
+    required
+>
+
+<select name="estilo">
+
+<option value="Motivacional">
+Motivacional
+</option>
+
+<option value="Dinheiro">
+Dinheiro
+</option>
+
+<option value="Curiosidades">
+Curiosidades
+</option>
+
+<option value="Futebol">
+Futebol
+</option>
+
+<option value="História">
+História
+</option>
+
+</select>
+
+<select name="duracao">
+
+<option value="10">
+10 segundos
+</option>
+
+<option value="15">
+15 segundos
+</option>
+
+<option value="30">
+30 segundos
+</option>
+
+</select>
+
+<button type="submit">
+🚀 Criar Reel
+</button>
+
+</form>
+
+{% if mensagem %}
+
+<div class="info">
+
+<p>{{ mensagem }}</p>
+
+{% if video %}
+
+<a href="/download/{{ video }}">
+<button>
+⬇️ Baixar vídeo
+</button>
+</a>
+
+{% endif %}
+
+</div>
+
+{% endif %}
+
+</div>
+
+</body>
+
+</html>
+"""
+
+
+# =========================
+# ROTAS
+# =========================
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+
+    mensagem = ""
+    video = None
+
+    if request.method == "POST":
+
+        tema = request.form.get(
+            "tema",
+            ""
+        ).strip()
+
+        estilo = request.form.get(
+            "estilo",
+            "Motivacional"
         )
 
+        duracao = int(
+            request.form.get(
+                "duracao",
+                10
+            )
+        )
 
-@app.route("/baixar/<nome>")
-def baixar(nome):
+        if not tema:
+
+            mensagem = "Digite um tema."
+
+        else:
+
+            try:
+
+                mensagem = (
+                    "Criando seu vídeo..."
+                )
+
+                caminho = criar_video(
+                    tema,
+                    estilo,
+                    duracao
+                )
+
+                video = os.path.basename(
+                    caminho
+                )
+
+                mensagem = (
+                    "✅ Vídeo criado com sucesso!"
+                )
+
+            except Exception as erro:
+
+                mensagem = (
+                    "❌ Erro: "
+                    + str(erro)
+                )
+
+    return render_template_string(
+        HTML,
+        mensagem=mensagem,
+        video=video
+    )
+
+
+@app.route("/download/<nome>")
+def download(nome):
 
     caminho = os.path.join(
-        VIDEO_DIR,
+        PASTA_VIDEOS,
         nome
     )
 
     if not os.path.exists(caminho):
-
-        return (
-            "Vídeo não encontrado.",
-            404
-        )
+        return "Vídeo não encontrado.", 404
 
     return send_file(
-
         caminho,
-
-        as_attachment=True,
-
-        download_name="reel.mp4"
-
+        as_attachment=True
     )
 
+
+# =========================
+# INICIAR SERVIDOR
+# =========================
 
 if __name__ == "__main__":
 
     app.run(
-
         host="0.0.0.0",
-
         port=int(
             os.environ.get(
                 "PORT",
                 8080
             )
         )
-
     )
