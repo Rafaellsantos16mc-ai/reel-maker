@@ -1,9 +1,10 @@
 import os
 import random
+import uuid
 import requests
 
 from flask import Flask, request, render_template_string, send_file
-from gtts import gTTS
+from gTTS import gTTS
 from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
 from PIL import Image
 
@@ -93,15 +94,9 @@ ROTEIROS = {
 
 
 def criar_roteiro(tema, estilo, duracao):
-
-    lista = ROTEIROS.get(
-        estilo,
-        ROTEIROS["Motivacional"]
-    )
-
+    lista = ROTEIROS.get(estilo, ROTEIROS["Motivacional"])
     texto = random.choice(lista)
 
-    # Coloca o tema de forma natural quando possível
     introducoes = [
         f"Falando sobre {tema}, existe uma coisa importante para entender.",
         f"Se você está pensando em {tema}, preste atenção nisso.",
@@ -109,18 +104,15 @@ def criar_roteiro(tema, estilo, duracao):
     ]
 
     introducao = random.choice(introducoes)
-
     texto_final = introducao + " " + texto
 
-    # Para vídeos muito curtos
+    # Ajusta o tamanho aproximado conforme a duração solicitada
     if duracao <= 10:
         palavras = texto_final.split()
         texto_final = " ".join(palavras[:42])
-
     elif duracao <= 15:
         palavras = texto_final.split()
         texto_final = " ".join(palavras[:58])
-
     else:
         palavras = texto_final.split()
         texto_final = " ".join(palavras[:105])
@@ -132,19 +124,14 @@ def criar_roteiro(tema, estilo, duracao):
 # NARRAÇÃO GRATUITA
 # =========================
 
-def gerar_narracao(texto):
-
-    caminho = os.path.join(
-        AUDIO_DIR,
-        "narracao.mp3"
-    )
+def gerar_narracao(texto, session_id):
+    caminho = os.path.join(AUDIO_DIR, f"narracao_{session_id}.mp3")
 
     voz = gTTS(
         text=texto,
         lang="pt-br",
         slow=False
     )
-
     voz.save(caminho)
 
     return caminho
@@ -155,17 +142,12 @@ def gerar_narracao(texto):
 # =========================
 
 def buscar_imagens(tema):
-
     if not PEXELS_API_KEY:
-        raise Exception(
-            "PEXELS_API_KEY não configurada."
-        )
+        raise Exception("PEXELS_API_KEY não configurada nas variáveis de ambiente.")
 
     resposta = requests.get(
         "https://api.pexels.com/v1/search",
-        headers={
-            "Authorization": PEXELS_API_KEY
-        },
+        headers={"Authorization": PEXELS_API_KEY},
         params={
             "query": tema,
             "per_page": 8,
@@ -175,34 +157,21 @@ def buscar_imagens(tema):
     )
 
     if resposta.status_code != 200:
-        raise Exception(
-            f"Erro Pexels: {resposta.status_code}"
-        )
+        raise Exception(f"Erro Pexels: status {resposta.status_code}")
 
     dados = resposta.json()
-
     imagens = []
 
     for foto in dados.get("photos", []):
-
         src = foto.get("src", {})
-
-        link = (
-            src.get("large")
-            or src.get("medium")
-            or src.get("original")
-        )
-
+        link = src.get("large") or src.get("medium") or src.get("original")
         if link:
             imagens.append(link)
 
     if not imagens:
-        raise Exception(
-            "Nenhuma imagem encontrada para esse tema."
-        )
+        raise Exception("Nenhuma imagem encontrada no Pexels para esse tema.")
 
     random.shuffle(imagens)
-
     return imagens[:5]
 
 
@@ -210,95 +179,41 @@ def buscar_imagens(tema):
 # PREPARAR IMAGEM
 # =========================
 
-def preparar_imagem(url, numero):
-
-    resposta = requests.get(
-        url,
-        timeout=30
-    )
-
+def preparar_imagem(url, session_id, numero):
+    resposta = requests.get(url, timeout=30)
     if resposta.status_code != 200:
-        raise Exception(
-            "Erro ao baixar imagem."
-        )
+        raise Exception("Erro ao baixar a imagem do Pexels.")
 
-    caminho_original = os.path.join(
-        IMAGES_DIR,
-        f"original_{numero}.jpg"
-    )
+    caminho_original = os.path.join(IMAGES_DIR, f"orig_{session_id}_{numero}.jpg")
+    caminho_final = os.path.join(IMAGES_DIR, f"img_{session_id}_{numero}.jpg")
 
-    caminho_final = os.path.join(
-        IMAGES_DIR,
-        f"imagem_{numero}.jpg"
-    )
+    with open(caminho_original, "wb") as arquivo:
+        arquivo.write(resposta.content)
 
-    with open(
-        caminho_original,
-        "wb"
-    ) as arquivo:
+    with Image.open(caminho_original) as imagem:
+        imagem = imagem.convert("RGB")
 
-        arquivo.write(
-            resposta.content
-        )
+        proporcao_destino = WIDTH / HEIGHT
+        proporcao_imagem = imagem.width / imagem.height
 
-    imagem = Image.open(
-        caminho_original
-    ).convert("RGB")
+        if proporcao_imagem > proporcao_destino:
+            nova_altura = HEIGHT
+            nova_largura = int(imagem.width * nova_altura / imagem.height)
+        else:
+            nova_largura = WIDTH
+            nova_altura = int(imagem.height * nova_largura / imagem.width)
 
-    proporcao_destino = WIDTH / HEIGHT
-    proporcao_imagem = (
-        imagem.width / imagem.height
-    )
+        imagem = imagem.resize((nova_largura, nova_altura), Image.LANCZOS)
 
-    if proporcao_imagem > proporcao_destino:
+        esquerda = max(0, (imagem.width - WIDTH) // 2)
+        topo = max(0, (imagem.height - HEIGHT) // 2)
 
-        nova_altura = HEIGHT
+        imagem = imagem.crop((esquerda, topo, esquerda + WIDTH, topo + HEIGHT))
+        imagem.save(caminho_final, "JPEG", quality=85)
 
-        nova_largura = int(
-            imagem.width *
-            nova_altura /
-            imagem.height
-        )
-
-    else:
-
-        nova_largura = WIDTH
-
-        nova_altura = int(
-            imagem.height *
-            nova_largura /
-            imagem.width
-        )
-
-    imagem = imagem.resize(
-        (nova_largura, nova_altura),
-        Image.LANCZOS
-    )
-
-    esquerda = max(
-        0,
-        (imagem.width - WIDTH) // 2
-    )
-
-    topo = max(
-        0,
-        (imagem.height - HEIGHT) // 2
-    )
-
-    imagem = imagem.crop(
-        (
-            esquerda,
-            topo,
-            esquerda + WIDTH,
-            topo + HEIGHT
-        )
-    )
-
-    imagem.save(
-        caminho_final,
-        "JPEG",
-        quality=85
-    )
+    # Limpa imagem original não recortada
+    if os.path.exists(caminho_original):
+        os.remove(caminho_original)
 
     return caminho_final
 
@@ -307,100 +222,42 @@ def preparar_imagem(url, numero):
 # CRIAR VÍDEO
 # =========================
 
-def criar_video(
-    tema,
-    estilo,
-    duracao
-):
+def criar_video(tema, estilo, duracao):
+    session_id = str(uuid.uuid4())[:8]
 
-    roteiro = criar_roteiro(
-        tema,
-        estilo,
-        duracao
-    )
+    roteiro = criar_roteiro(tema, estilo, duracao)
+    links = buscar_imagens(tema)
+    caminho_audio = gerar_narracao(roteiro, session_id)
 
-    links = buscar_imagens(
-        tema
-    )
-
-    caminho_audio = gerar_narracao(
-        roteiro
-    )
-
-    audio = AudioFileClip(
-        caminho_audio
-    )
-
+    audio = AudioFileClip(caminho_audio)
     duracao_audio = audio.duration
 
-    duracao_final = max(
-        float(duracao),
-        float(duracao_audio)
-    )
+    # Define duração ajustando conforme áudio e limite mínimo/máximo
+    duracao_final = max(float(duracao), float(duracao_audio))
+    duracao_final = min(duracao_final, float(duracao) + 5)
 
-    duracao_final = min(
-        duracao_final,
-        float(duracao) + 5
-    )
-
-    quantidade = min(
-        len(links),
-        5
-    )
-
-    duracao_imagem = (
-        duracao_final / quantidade
-    )
+    quantidade = min(len(links), 5)
+    duracao_imagem = duracao_final / quantidade
 
     clips = []
-
     for i in range(quantidade):
-
-        caminho = preparar_imagem(
-            links[i],
-            i
-        )
-
-        clip = (
-            ImageClip(caminho)
-            .with_duration(
-                duracao_imagem
-            )
-        )
-
+        caminho_img = preparar_imagem(links[i], session_id, i)
+        clip = ImageClip(caminho_img).with_duration(duracao_imagem)
         clips.append(clip)
 
-    video = concatenate_videoclips(
-        clips,
-        method="compose"
-    )
+    video = concatenate_videoclips(clips, method="compose")
 
     if video.duration > duracao_final:
-
-        video = video.subclipped(
-            0,
-            duracao_final
-        )
+        video = video.subclipped(0, duracao_final)
 
     audio_final = audio
-
     if audio.duration > video.duration:
+        audio_final = audio.subclipped(0, video.duration)
 
-        audio_final = audio.subclipped(
-            0,
-            video.duration
-        )
+    video = video.with_audio(audio_final)
 
-    video = video.with_audio(
-        audio_final
-    )
-
-    nome = "reel_automatico.mp4"
-
-    caminho_video = os.path.join(
-        VIDEOS_DIR,
-        nome
-    )
+    nome_video = f"reel_{session_id}.mp4"
+    caminho_video = os.path.join(VIDEOS_DIR, nome_video)
 
     video.write_videofile(
         caminho_video,
@@ -412,277 +269,167 @@ def criar_video(
         logger=None
     )
 
+    # Encerra e desaloca os arquivos de vídeo/áudio
     video.close()
-
     if audio_final != audio:
         audio_final.close()
-
     audio.close()
 
-    return nome, roteiro
+    # Deleta arquivo de narração gerado após o término da gravação
+    if os.path.exists(caminho_audio):
+        os.remove(caminho_audio)
+
+    return nome_video, roteiro
 
 
 # =========================
-# INTERFACE
+# INTERFACE WEB
 # =========================
 
 HTML = """
 <!DOCTYPE html>
-
 <html lang="pt-BR">
-
 <head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0">
-
-<title>Gerador de Reels</title>
-
-<style>
-
-body {
-    font-family: Arial;
-    background: #111;
-    color: white;
-    padding: 20px;
-}
-
-.container {
-    max-width: 500px;
-    margin: auto;
-}
-
-.caixa {
-    background: #1e1e1e;
-    padding: 20px;
-    border-radius: 15px;
-}
-
-h1 {
-    text-align: center;
-}
-
-input,
-select,
-button {
-
-    width: 100%;
-    padding: 14px;
-    margin-top: 8px;
-    margin-bottom: 15px;
-
-    border: none;
-    border-radius: 8px;
-
-    box-sizing: border-box;
-}
-
-button {
-
-    background: #00c853;
-    color: white;
-
-    font-size: 18px;
-    font-weight: bold;
-}
-
-.resultado {
-
-    background: #292929;
-    padding: 15px;
-    border-radius: 10px;
-    margin-top: 15px;
-
-    word-wrap: break-word;
-}
-
-a {
-
-    display: block;
-
-    background: #2196f3;
-
-    color: white;
-
-    padding: 15px;
-
-    margin-top: 15px;
-
-    text-align: center;
-
-    border-radius: 8px;
-
-    text-decoration: none;
-
-}
-
-</style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Reels</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: white;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: auto;
+        }
+        .caixa {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 15px;
+        }
+        h1 {
+            text-align: center;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 8px;
+            margin-bottom: 15px;
+            border: none;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #00c853;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #00e676;
+        }
+        .resultado {
+            background: #292929;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            word-wrap: break-word;
+        }
+        a {
+            display: block;
+            background: #2196f3;
+            color: white;
+            padding: 15px;
+            margin-top: 15px;
+            text-align: center;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            background: #42a5f5;
+        }
+    </style>
 </head>
-
 <body>
+    <div class="container">
+        <h1>🎬 Gerador de Reels</h1>
+        <div class="caixa">
+            <form method="POST">
+                <label>Tema</label>
+                <input name="tema" placeholder="Ex: Como juntar dinheiro" required>
 
-<div class="container">
+                <label>Estilo</label>
+                <select name="estilo">
+                    <option>Motivacional</option>
+                    <option>Dinheiro</option>
+                    <option>Curiosidades</option>
+                    <option>Futebol</option>
+                    <option>História</option>
+                    <option>Humor</option>
+                    <option>Desenvolvimento pessoal</option>
+                </select>
 
-<h1>🎬 Gerador de Reels</h1>
+                <label>Duração</label>
+                <select name="duracao">
+                    <option value="10">10 segundos</option>
+                    <option value="15" selected>15 segundos</option>
+                    <option value="30">30 segundos</option>
+                </select>
 
-<div class="caixa">
+                <button type="submit">🎙️ CRIAR REEL</button>
+            </form>
 
-<form method="POST">
+            {% if mensagem %}
+                <div class="resultado">
+                    {{ mensagem }}
+                </div>
+            {% endif %}
 
-<label>Tema</label>
+            {% if download %}
+                <a href="/download/{{ download }}">⬇️ BAIXAR REEL</a>
+            {% endif %}
 
-<input
-name="tema"
-placeholder="Ex: Como juntar dinheiro"
-required
->
-
-<label>Estilo</label>
-
-<select name="estilo">
-
-<option>Motivacional</option>
-<option>Dinheiro</option>
-<option>Curiosidades</option>
-<option>Futebol</option>
-<option>História</option>
-<option>Humor</option>
-<option>Desenvolvimento pessoal</option>
-
-</select>
-
-<label>Duração</label>
-
-<select name="duracao">
-
-<option value="10">
-10 segundos
-</option>
-
-<option value="15">
-15 segundos
-</option>
-
-<option value="30">
-30 segundos
-</option>
-
-</select>
-
-<button type="submit">
-🎙️ CRIAR REEL
-</button>
-
-</form>
-
-{% if mensagem %}
-
-<div class="resultado">
-
-{{ mensagem }}
-
-</div>
-
-{% endif %}
-
-{% if download %}
-
-<a href="/download/{{ download }}">
-
-⬇️ BAIXAR REEL
-
-</a>
-
-{% endif %}
-
-{% if roteiro %}
-
-<div class="resultado">
-
-<strong>Roteiro:</strong>
-
-<p>
-{{ roteiro }}
-</p>
-
-</div>
-
-{% endif %}
-
-</div>
-
-</div>
-
+            {% if roteiro %}
+                <div class="resultado">
+                    <strong>Roteiro:</strong>
+                    <p>{{ roteiro }}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
 </body>
-
 </html>
 """
 
 
 # =========================
-# HOME
+# ROTAS FLASK
 # =========================
 
-@app.route(
-    "/",
-    methods=["GET", "POST"]
-)
-
+@app.route("/", methods=["GET", "POST"])
 def index():
-
     mensagem = None
     download = None
     roteiro = None
 
     if request.method == "POST":
-
         try:
-
-            tema = request.form.get(
-                "tema",
-                ""
-            ).strip()
-
-            estilo = request.form.get(
-                "estilo",
-                "Motivacional"
-            )
-
-            duracao = int(
-                request.form.get(
-                    "duracao",
-                    "15"
-                )
-            )
+            tema = request.form.get("tema", "").strip()
+            estilo = request.form.get("estilo", "Motivacional")
+            duracao = int(request.form.get("duracao", "15"))
 
             if not tema:
-                raise Exception(
-                    "Digite um tema."
-                )
+                raise Exception("Digite um tema válido.")
 
-            mensagem = (
-                "Criando seu Reel..."
-            )
-
-            download, roteiro = criar_video(
-                tema,
-                estilo,
-                duracao
-            )
-
-            mensagem = (
-                "✅ Reel criado com sucesso!"
-            )
+            download, roteiro = criar_video(tema, estilo, duracao)
+            mensagem = "✅ Reel criado com sucesso!"
 
         except Exception as erro:
-
-            mensagem = (
-                "❌ Erro ao criar o vídeo: "
-                + str(erro)
-            )
+            mensagem = f"❌ Erro ao criar o vídeo: {str(erro)}"
 
     return render_template_string(
         HTML,
@@ -692,48 +439,20 @@ def index():
     )
 
 
-# =========================
-# DOWNLOAD
-# =========================
-
-@app.route(
-    "/download/<nome>"
-)
-
+@app.route("/download/<nome>")
 def download_video(nome):
-
-    caminho = os.path.join(
-        VIDEOS_DIR,
-        nome
-    )
+    caminho = os.path.join(VIDEOS_DIR, nome)
 
     if not os.path.exists(caminho):
+        return "Vídeo não encontrado.", 404
 
-        return (
-            "Vídeo não encontrado.",
-            404
-        )
-
-    return send_file(
-        caminho,
-        as_attachment=True
-    )
+    return send_file(caminho, as_attachment=True)
 
 
 # =========================
-# SERVIDOR
+# EXECUÇÃO DO SERVIDOR
 # =========================
 
 if __name__ == "__main__":
-
-    porta = int(
-        os.environ.get(
-            "PORT",
-            8080
-        )
-    )
-
-    app.run(
-        host="0.0.0.0",
-        port=porta
-    )
+    porta = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=porta)
