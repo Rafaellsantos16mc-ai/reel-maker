@@ -3,6 +3,7 @@ import random
 import requests
 
 from flask import Flask, request, render_template_string, send_file
+from gtts import gTTS
 from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
 from PIL import Image
 
@@ -17,7 +18,6 @@ HEIGHT = 960
 FPS = 15
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 VIDEOS_DIR = "videos"
 IMAGES_DIR = "imagens"
@@ -29,151 +29,154 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
 # =========================
-# GERAR ROTEIRO COM IA
+# ROTEIROS
 # =========================
 
-def gerar_roteiro_ia(tema, estilo, duracao):
+ROTEIROS = {
 
-    if not OPENAI_API_KEY:
-        raise Exception("OPENAI_API_KEY não configurada no Railway.")
+    "Motivacional": [
+        "Você não precisa mudar sua vida inteira hoje. Precisa apenas começar. Pequenas decisões repetidas todos os dias podem mudar completamente o seu futuro. Enquanto muita gente espera a oportunidade perfeita, quem começa agora já está criando a própria oportunidade. Não pare.",
+        
+        "Talvez você esteja mais perto do seu objetivo do que imagina. O problema é que resultados grandes quase nunca aparecem rapidamente. Continue trabalhando, continue aprendendo e continue tentando. Um dia você vai olhar para trás e perceber que cada pequeno passo valeu a pena.",
+        
+        "Não espere sentir vontade para começar. A disciplina aparece justamente nos dias em que a motivação desaparece. Faça um pouco hoje, faça novamente amanhã e continue. O segredo não é ser perfeito. É não desistir."
+    ],
 
-    prompt = f"""
-Crie um roteiro curto para um vídeo vertical de Instagram Reels/TikTok.
+    "Dinheiro": [
+        "Se você quer melhorar sua vida financeira, comece pelo básico. Gaste menos do que ganha, evite dívidas desnecessárias e aprenda uma habilidade que possa aumentar sua renda. Dinheiro não muda uma pessoa do dia para a noite. Mas bons hábitos financeiros podem mudar seu futuro.",
+        
+        "Ganhar mais dinheiro é importante, mas saber administrar o que você ganha é fundamental. Antes de procurar a próxima forma de ganhar dinheiro, descubra para onde está indo o seu dinheiro hoje. Pequenas despesas repetidas podem consumir uma grande parte da sua renda.",
+        
+        "Quer começar a construir uma vida financeira melhor? Pare de pensar apenas em economizar e comece também a pensar em aumentar sua capacidade de ganhar dinheiro. Aprenda, desenvolva habilidades e procure novas oportunidades. Sua renda pode crescer junto com o seu conhecimento."
+    ],
 
-Tema: {tema}
-Estilo: {estilo}
-Duração aproximada: {duracao} segundos.
+    "Curiosidades": [
+        "Você sabia que o cérebro humano é capaz de consumir uma quantidade enorme de energia mesmo quando estamos parados? Isso acontece porque ele trabalha continuamente, controlando pensamentos, movimentos, memória e diversas funções do corpo. É uma das estruturas mais impressionantes da natureza.",
+        
+        "Existe uma curiosidade sobre o sono que muita gente desconhece. Enquanto você dorme, seu cérebro continua trabalhando. Ele organiza informações, consolida memórias e participa de vários processos importantes para o funcionamento do organismo.",
+        
+        "Você já percebeu como uma música pode trazer uma lembrança antiga quase instantaneamente? Isso acontece porque música, emoção e memória estão fortemente conectadas no cérebro. Por isso algumas músicas conseguem nos transportar para momentos específicos da nossa vida."
+    ],
 
-Regras:
-- Escreva em português do Brasil.
-- Comece com um gancho muito forte.
-- O texto precisa prender a atenção.
-- Use frases naturais, como uma pessoa falando.
-- Não use títulos.
-- Não use emojis.
-- Não use tópicos.
-- Não diga "neste vídeo".
-- Não diga "curta e compartilhe".
-- Não invente estatísticas.
-- Termine com uma frase marcante.
-- Escreva somente o texto que será narrado.
-"""
+    "Futebol": [
+        "No futebol, uma partida pode mudar completamente em poucos minutos. Um gol muda a estratégia, um cartão pode alterar o comportamento de um jogador e uma substituição pode transformar o jogo. É justamente essa imprevisibilidade que faz milhões de pessoas acompanharem o esporte.",
+        
+        "Você já reparou como os melhores jogadores parecem tomar decisões muito rapidamente? Isso acontece porque eles treinam repetidamente situações de jogo. Com experiência, muitas decisões deixam de ser pensadas conscientemente e passam a acontecer quase automaticamente.",
+        
+        "No futebol, talento ajuda, mas preparação também faz diferença. Treinamento, posicionamento, leitura de jogo e tomada de decisão podem transformar completamente o desempenho de um jogador. Muitas vezes, o que parece facilidade é resultado de milhares de horas de treino."
+    ],
 
-    resposta = requests.post(
-        "https://api.openai.com/v1/responses",
-        headers={
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "model": "gpt-5.6-luna",
-            "input": prompt
-        },
-        timeout=60
+    "História": [
+        "A história está cheia de acontecimentos que parecem inacreditáveis hoje. Impérios surgiram e desapareceram, cidades foram reconstruídas e invenções mudaram completamente a maneira como as pessoas viviam. Conhecer o passado ajuda a entender por que o mundo atual é como é.",
+        
+        "Muitas das coisas que usamos diariamente possuem uma história muito mais antiga do que imaginamos. Algumas invenções passaram por décadas de mudanças até chegarem ao formato que conhecemos hoje. A tecnologia atual é resultado de muitas gerações de descobertas.",
+        
+        "Grandes acontecimentos históricos raramente acontecem de uma hora para outra. Normalmente são resultado de pequenas decisões, conflitos, descobertas e mudanças que acontecem ao longo de muitos anos. Por isso estudar história é também entender como pequenas mudanças podem produzir grandes consequências."
+    ],
+
+    "Humor": [
+        "Eu prometi que hoje ia economizar dinheiro. Aí entrei em uma loja só para olhar. Cinco minutos depois estava pensando se realmente precisava daquele produto. Conclusão: meu dinheiro saiu mais rápido do que eu entrei na loja.",
+        
+        "Você já percebeu que quando estamos com pressa tudo dá errado? A chave desaparece, o celular fica sem bateria e justamente naquele momento aparece um trânsito enorme. Parece que o universo escolheu aquele dia para testar nossa paciência.",
+        
+        "O despertador toca e você pensa: só mais cinco minutos. Quando percebe, já passou meia hora. Aí você levanta correndo, procurando roupa, celular, chave e tentando lembrar por que decidiu dormir tarde. Todo dia é uma nova aventura."
+    ],
+
+    "Desenvolvimento pessoal": [
+        "Uma das melhores coisas que você pode fazer por você mesmo é aprender a dizer não. Não para tudo, mas para aquilo que tira seu tempo, sua energia e seu foco. Quando você aprende a escolher melhor onde coloca sua atenção, sua vida começa a mudar.",
+        
+        "Você não precisa se comparar com todo mundo. Cada pessoa está vivendo uma realidade diferente. Compare você de hoje com quem você era ontem. Se estiver aprendendo, melhorando e avançando, mesmo que lentamente, já existe progresso.",
+        
+        "Aprender uma habilidade nova pode parecer difícil no começo. Você erra, esquece e pensa em desistir. Mas depois de repetir várias vezes, aquilo começa a ficar natural. O segredo é aceitar ser iniciante antes de tentar ser bom."
+    ]
+}
+
+
+def criar_roteiro(tema, estilo, duracao):
+
+    lista = ROTEIROS.get(
+        estilo,
+        ROTEIROS["Motivacional"]
     )
 
-    if resposta.status_code != 200:
-        raise Exception(
-            f"Erro OpenAI: {resposta.status_code} - {resposta.text[:500]}"
-        )
+    texto = random.choice(lista)
 
-    dados = resposta.json()
+    # Coloca o tema de forma natural quando possível
+    introducoes = [
+        f"Falando sobre {tema}, existe uma coisa importante para entender.",
+        f"Se você está pensando em {tema}, preste atenção nisso.",
+        f"Quando o assunto é {tema}, muita gente esquece de uma coisa."
+    ]
 
-    texto = dados.get("output_text")
+    introducao = random.choice(introducoes)
 
-    if not texto:
-        # Fallback para estruturas diferentes da resposta
-        partes = []
+    texto_final = introducao + " " + texto
 
-        for item in dados.get("output", []):
-            for content in item.get("content", []):
-                if content.get("type") == "output_text":
-                    partes.append(content.get("text", ""))
+    # Para vídeos muito curtos
+    if duracao <= 10:
+        palavras = texto_final.split()
+        texto_final = " ".join(palavras[:42])
 
-        texto = " ".join(partes)
+    elif duracao <= 15:
+        palavras = texto_final.split()
+        texto_final = " ".join(palavras[:58])
 
-    texto = texto.strip()
+    else:
+        palavras = texto_final.split()
+        texto_final = " ".join(palavras[:105])
 
-    if not texto:
-        raise Exception("A IA não retornou um roteiro.")
-
-    return texto
+    return texto_final
 
 
 # =========================
-# GERAR NARRAÇÃO
+# NARRAÇÃO GRATUITA
 # =========================
 
 def gerar_narracao(texto):
 
-    if not OPENAI_API_KEY:
-        raise Exception("OPENAI_API_KEY não configurada.")
-
-    caminho = os.path.join(AUDIO_DIR, "narracao.mp3")
-
-    resposta = requests.post(
-        "https://api.openai.com/v1/audio/speech",
-        headers={
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "model": "gpt-4o-mini-tts",
-            "voice": "coral",
-            "input": texto,
-            "instructions": (
-                "Fale em português do Brasil. "
-                "Use uma voz natural, clara e envolvente, "
-                "com ritmo de narrador de vídeos curtos para redes sociais. "
-                "Faça pausas naturais e dê ênfase às partes importantes."
-            ),
-            "response_format": "mp3"
-        },
-        timeout=120
+    caminho = os.path.join(
+        AUDIO_DIR,
+        "narracao.mp3"
     )
 
-    if resposta.status_code != 200:
-        raise Exception(
-            f"Erro TTS: {resposta.status_code} - {resposta.text[:500]}"
-        )
+    voz = gTTS(
+        text=texto,
+        lang="pt-br",
+        slow=False
+    )
 
-    with open(caminho, "wb") as arquivo:
-        arquivo.write(resposta.content)
+    voz.save(caminho)
 
     return caminho
 
 
 # =========================
-# BUSCAR IMAGENS NO PEXELS
+# PEXELS
 # =========================
 
 def buscar_imagens(tema):
 
     if not PEXELS_API_KEY:
-        raise Exception("PEXELS_API_KEY não configurada no Railway.")
-
-    url = "https://api.pexels.com/v1/search"
-
-    headers = {
-        "Authorization": PEXELS_API_KEY
-    }
-
-    params = {
-        "query": tema,
-        "per_page": 8,
-        "orientation": "portrait"
-    }
+        raise Exception(
+            "PEXELS_API_KEY não configurada."
+        )
 
     resposta = requests.get(
-        url,
-        headers=headers,
-        params=params,
+        "https://api.pexels.com/v1/search",
+        headers={
+            "Authorization": PEXELS_API_KEY
+        },
+        params={
+            "query": tema,
+            "per_page": 8,
+            "orientation": "portrait"
+        },
         timeout=30
     )
 
     if resposta.status_code != 200:
         raise Exception(
-            f"Erro Pexels: {resposta.status_code} - {resposta.text[:500]}"
+            f"Erro Pexels: {resposta.status_code}"
         )
 
     dados = resposta.json()
@@ -185,8 +188,7 @@ def buscar_imagens(tema):
         src = foto.get("src", {})
 
         link = (
-            src.get("large2x")
-            or src.get("large")
+            src.get("large")
             or src.get("medium")
             or src.get("original")
         )
@@ -195,7 +197,9 @@ def buscar_imagens(tema):
             imagens.append(link)
 
     if not imagens:
-        raise Exception("Nenhuma imagem encontrada no Pexels.")
+        raise Exception(
+            "Nenhuma imagem encontrada para esse tema."
+        )
 
     random.shuffle(imagens)
 
@@ -214,33 +218,46 @@ def preparar_imagem(url, numero):
     )
 
     if resposta.status_code != 200:
-        raise Exception("Não foi possível baixar uma imagem do Pexels.")
+        raise Exception(
+            "Erro ao baixar imagem."
+        )
 
-    original = os.path.join(
+    caminho_original = os.path.join(
         IMAGES_DIR,
         f"original_{numero}.jpg"
     )
 
-    preparada = os.path.join(
+    caminho_final = os.path.join(
         IMAGES_DIR,
         f"imagem_{numero}.jpg"
     )
 
-    with open(original, "wb") as arquivo:
-        arquivo.write(resposta.content)
+    with open(
+        caminho_original,
+        "wb"
+    ) as arquivo:
 
-    imagem = Image.open(original).convert("RGB")
+        arquivo.write(
+            resposta.content
+        )
 
-    # Ajusta para o formato vertical
+    imagem = Image.open(
+        caminho_original
+    ).convert("RGB")
+
     proporcao_destino = WIDTH / HEIGHT
-    proporcao_original = imagem.width / imagem.height
+    proporcao_imagem = (
+        imagem.width / imagem.height
+    )
 
-    if proporcao_original > proporcao_destino:
+    if proporcao_imagem > proporcao_destino:
 
         nova_altura = HEIGHT
 
         nova_largura = int(
-            imagem.width * nova_altura / imagem.height
+            imagem.width *
+            nova_altura /
+            imagem.height
         )
 
     else:
@@ -248,7 +265,9 @@ def preparar_imagem(url, numero):
         nova_largura = WIDTH
 
         nova_altura = int(
-            imagem.height * nova_largura / imagem.width
+            imagem.height *
+            nova_largura /
+            imagem.width
         )
 
     imagem = imagem.resize(
@@ -256,7 +275,6 @@ def preparar_imagem(url, numero):
         Image.LANCZOS
     )
 
-    # Recorte central
     esquerda = max(
         0,
         (imagem.width - WIDTH) // 2
@@ -267,65 +285,70 @@ def preparar_imagem(url, numero):
         (imagem.height - HEIGHT) // 2
     )
 
-    direita = esquerda + WIDTH
-    baixo = topo + HEIGHT
-
     imagem = imagem.crop(
-        (esquerda, topo, direita, baixo)
+        (
+            esquerda,
+            topo,
+            esquerda + WIDTH,
+            topo + HEIGHT
+        )
     )
 
     imagem.save(
-        preparada,
+        caminho_final,
         "JPEG",
         quality=85
     )
 
-    return preparada
+    return caminho_final
 
 
 # =========================
 # CRIAR VÍDEO
 # =========================
 
-def criar_video(tema, estilo, duracao):
+def criar_video(
+    tema,
+    estilo,
+    duracao
+):
 
-    # 1. Cria roteiro
-    roteiro = gerar_roteiro_ia(
+    roteiro = criar_roteiro(
         tema,
         estilo,
         duracao
     )
 
-    # 2. Busca imagens
-    links_imagens = buscar_imagens(tema)
+    links = buscar_imagens(
+        tema
+    )
 
-    # 3. Cria narração
-    caminho_audio = gerar_narracao(roteiro)
+    caminho_audio = gerar_narracao(
+        roteiro
+    )
 
-    audio = AudioFileClip(caminho_audio)
+    audio = AudioFileClip(
+        caminho_audio
+    )
 
     duracao_audio = audio.duration
 
-    # Usa a duração da narração.
-    # Se for menor que o solicitado, mantém a duração escolhida.
     duracao_final = max(
         float(duracao),
         float(duracao_audio)
     )
 
-    # Limite de segurança
     duracao_final = min(
         duracao_final,
-        float(duracao) + 8
+        float(duracao) + 5
     )
 
-    # Quantidade de imagens
     quantidade = min(
-        len(links_imagens),
+        len(links),
         5
     )
 
-    duracao_por_imagem = (
+    duracao_imagem = (
         duracao_final / quantidade
     )
 
@@ -333,14 +356,16 @@ def criar_video(tema, estilo, duracao):
 
     for i in range(quantidade):
 
-        caminho_imagem = preparar_imagem(
-            links_imagens[i],
+        caminho = preparar_imagem(
+            links[i],
             i
         )
 
         clip = (
-            ImageClip(caminho_imagem)
-            .with_duration(duracao_por_imagem)
+            ImageClip(caminho)
+            .with_duration(
+                duracao_imagem
+            )
         )
 
         clips.append(clip)
@@ -350,17 +375,17 @@ def criar_video(tema, estilo, duracao):
         method="compose"
     )
 
-    # Ajusta exatamente à duração final
     if video.duration > duracao_final:
+
         video = video.subclipped(
             0,
             duracao_final
         )
 
-    # Coloca somente a narração
     audio_final = audio
 
     if audio.duration > video.duration:
+
         audio_final = audio.subclipped(
             0,
             video.duration
@@ -370,15 +395,15 @@ def criar_video(tema, estilo, duracao):
         audio_final
     )
 
-    nome_video = "reel_automatico.mp4"
+    nome = "reel_automatico.mp4"
 
-    caminho_final = os.path.join(
+    caminho_video = os.path.join(
         VIDEOS_DIR,
-        nome_video
+        nome
     )
 
     video.write_videofile(
-        caminho_final,
+        caminho_video,
         fps=FPS,
         codec="libx264",
         audio_codec="aac",
@@ -394,7 +419,7 @@ def criar_video(tema, estilo, duracao):
 
     audio.close()
 
-    return nome_video, roteiro
+    return nome, roteiro
 
 
 # =========================
@@ -403,6 +428,7 @@ def criar_video(tema, estilo, duracao):
 
 HTML = """
 <!DOCTYPE html>
+
 <html lang="pt-BR">
 
 <head>
@@ -412,46 +438,20 @@ HTML = """
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0">
 
-<title>Gerador de Reels IA</title>
+<title>Gerador de Reels</title>
 
 <style>
 
 body {
-    font-family: Arial, sans-serif;
+    font-family: Arial;
     background: #111;
     color: white;
-    padding: 25px;
+    padding: 20px;
 }
 
 .container {
     max-width: 500px;
     margin: auto;
-}
-
-h1 {
-    text-align: center;
-}
-
-input, select, button {
-    width: 100%;
-    padding: 14px;
-    margin-top: 10px;
-    margin-bottom: 15px;
-    border-radius: 8px;
-    border: none;
-    box-sizing: border-box;
-}
-
-button {
-    background: #00c853;
-    color: white;
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-button:hover {
-    background: #00a844;
 }
 
 .caixa {
@@ -460,22 +460,62 @@ button:hover {
     border-radius: 15px;
 }
 
+h1 {
+    text-align: center;
+}
+
+input,
+select,
+button {
+
+    width: 100%;
+    padding: 14px;
+    margin-top: 8px;
+    margin-bottom: 15px;
+
+    border: none;
+    border-radius: 8px;
+
+    box-sizing: border-box;
+}
+
+button {
+
+    background: #00c853;
+    color: white;
+
+    font-size: 18px;
+    font-weight: bold;
+}
+
 .resultado {
-    background: #222;
+
+    background: #292929;
     padding: 15px;
     border-radius: 10px;
-    margin-top: 20px;
+    margin-top: 15px;
+
+    word-wrap: break-word;
 }
 
 a {
+
     display: block;
-    text-align: center;
+
     background: #2196f3;
+
     color: white;
-    padding: 14px;
-    border-radius: 8px;
-    text-decoration: none;
+
+    padding: 15px;
+
     margin-top: 15px;
+
+    text-align: center;
+
+    border-radius: 8px;
+
+    text-decoration: none;
+
 }
 
 </style>
@@ -486,18 +526,17 @@ a {
 
 <div class="container">
 
-<h1>🎬 Gerador de Reels IA</h1>
+<h1>🎬 Gerador de Reels</h1>
 
 <div class="caixa">
 
 <form method="POST">
 
-<label>Tema do vídeo</label>
+<label>Tema</label>
 
 <input
-type="text"
 name="tema"
-placeholder="Ex: Como juntar dinheiro ganhando pouco"
+placeholder="Ex: Como juntar dinheiro"
 required
 >
 
@@ -519,9 +558,17 @@ required
 
 <select name="duracao">
 
-<option value="10">10 segundos</option>
-<option value="15">15 segundos</option>
-<option value="30">30 segundos</option>
+<option value="10">
+10 segundos
+</option>
+
+<option value="15">
+15 segundos
+</option>
+
+<option value="30">
+30 segundos
+</option>
 
 </select>
 
@@ -544,7 +591,9 @@ required
 {% if download %}
 
 <a href="/download/{{ download }}">
-⬇️ BAIXAR VÍDEO
+
+⬇️ BAIXAR REEL
+
 </a>
 
 {% endif %}
@@ -553,9 +602,11 @@ required
 
 <div class="resultado">
 
-<strong>Roteiro criado:</strong>
+<strong>Roteiro:</strong>
 
-<p>{{ roteiro }}</p>
+<p>
+{{ roteiro }}
+</p>
 
 </div>
 
@@ -572,10 +623,14 @@ required
 
 
 # =========================
-# ROTA PRINCIPAL
+# HOME
 # =========================
 
-@app.route("/", methods=["GET", "POST"])
+@app.route(
+    "/",
+    methods=["GET", "POST"]
+)
+
 def index():
 
     mensagem = None
@@ -609,8 +664,7 @@ def index():
                 )
 
             mensagem = (
-                "Criando roteiro, "
-                "narração, imagens e vídeo..."
+                "Criando seu Reel..."
             )
 
             download, roteiro = criar_video(
@@ -620,13 +674,13 @@ def index():
             )
 
             mensagem = (
-                "Reel criado com sucesso!"
+                "✅ Reel criado com sucesso!"
             )
 
         except Exception as erro:
 
             mensagem = (
-                "Erro ao criar o vídeo: "
+                "❌ Erro ao criar o vídeo: "
                 + str(erro)
             )
 
@@ -642,7 +696,10 @@ def index():
 # DOWNLOAD
 # =========================
 
-@app.route("/download/<nome>")
+@app.route(
+    "/download/<nome>"
+)
+
 def download_video(nome):
 
     caminho = os.path.join(
@@ -651,7 +708,11 @@ def download_video(nome):
     )
 
     if not os.path.exists(caminho):
-        return "Vídeo não encontrado.", 404
+
+        return (
+            "Vídeo não encontrado.",
+            404
+        )
 
     return send_file(
         caminho,
@@ -660,7 +721,7 @@ def download_video(nome):
 
 
 # =========================
-# INICIAR SERVIDOR
+# SERVIDOR
 # =========================
 
 if __name__ == "__main__":
