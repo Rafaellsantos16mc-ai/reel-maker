@@ -9,8 +9,6 @@ from PIL import Image
 
 app = Flask(name)
 
-CONFIGURACOES
-
 PORT = int(os.environ.get(“PORT”, “8080”))
 
 WIDTH = 540
@@ -25,19 +23,17 @@ IMAGES_DIR = “imagens”
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
-ROTEIROS
-
 ROTEIROS = {
 “Motivacional”: [
 “Nunca desista dos seus objetivos. Cada pequeno passo conta. Continue trabalhando e acreditando nos seus sonhos.”,
 “Voce nao precisa ser perfeito para comecar. Precisa apenas comecar. Todos os dias sao uma nova oportunidade para evoluir.”,
-“Acredite no seu potencial. Mesmo quando ninguem estiver vendo seu esforco, continue. A persistencia faz a diferenca.”
+“Acredite no seu potencial. Mesmo quando ninguem estiver vendo seu esforco, continue.”
 ],
 
 "Dinheiro": [
-    "Cuidar do dinheiro comeca com pequenas decisoes. Evite gastos desnecessarios, organize suas financas e procure aumentar sua renda.",
-    "Construir uma vida financeira melhor exige planejamento, disciplina e paciencia. Pequenas economias podem fazer diferenca no futuro.",
-    "Dinheiro nao e apenas sobre ganhar mais. Tambem e sobre aprender a administrar melhor aquilo que voce ja ganha."
+    "Cuidar do dinheiro comeca com pequenas decisoes. Evite gastos desnecessarios e organize suas financas.",
+    "Construir uma vida financeira melhor exige planejamento, disciplina e paciencia.",
+    "Dinheiro nao e apenas sobre ganhar mais. Tambem e sobre aprender a administrar melhor o que voce ganha."
 ],
 "Curiosidades": [
     "O mundo esta cheio de fatos surpreendentes. Algumas coisas que parecem impossiveis realmente existem.",
@@ -45,29 +41,27 @@ ROTEIROS = {
     "Todos os dias podemos descobrir algo novo sobre ciencia, natureza, animais e historia."
 ],
 "Futebol": [
-    "No futebol, cada segundo pode mudar completamente uma partida. Um gol, uma defesa ou uma decisao podem transformar o jogo.",
-    "O futebol e muito mais do que marcar gols. Estrategia, preparacao, concentracao e trabalho em equipe fazem parte do jogo.",
-    "Grandes jogadores nao chegaram ao topo apenas pelo talento. Treinamento, disciplina e dedicacao tambem fazem parte da trajetoria."
+    "No futebol, cada segundo pode mudar completamente uma partida.",
+    "O futebol e muito mais do que marcar gols. Estrategia, preparacao e trabalho em equipe fazem parte do jogo.",
+    "Grandes jogadores nao chegaram ao topo apenas pelo talento. Treinamento e dedicacao tambem fazem parte da trajetoria."
 ],
 "Historia": [
-    "A historia e formada por acontecimentos que mudaram o mundo. Conhecer o passado ajuda a entender melhor o presente.",
+    "A historia e formada por acontecimentos que mudaram o mundo.",
     "Grandes acontecimentos historicos influenciaram sociedades inteiras e deixaram marcas que continuam presentes.",
     "Muitas coisas da nossa vida atual comecaram com acontecimentos de centenas ou milhares de anos atras."
 ],
 "Humor": [
     "A vida seria muito mais facil se viesse com manual de instrucoes. Como nao veio, so nos resta aprender na pratica.",
-    "Tem dias em que tudo parece dar errado. Mas pelo menos podemos rir depois e transformar tudo em uma boa historia.",
+    "Tem dias em que tudo parece dar errado. Mas pelo menos podemos rir depois.",
     "A melhor parte de alguns problemas e poder contar a historia depois e perceber que virou motivo para rir."
 ],
 "Desenvolvimento pessoal": [
-    "Melhorar um pouco todos os dias pode gerar grandes mudancas ao longo do tempo. Tenha paciencia com seu processo.",
+    "Melhorar um pouco todos os dias pode gerar grandes mudancas ao longo do tempo.",
     "Aprender, praticar e corrigir fazem parte do crescimento. Nao tenha medo de errar.",
-    "Seu futuro e construido pelas decisoes que voce toma hoje. Comece com pequenas mudancas e mantenha a constancia."
+    "Seu futuro e construido pelas decisoes que voce toma hoje. Comece com pequenas mudancas."
 ]
 
 }
-
-CRIAR ROTEIRO
 
 def criar_roteiro(tema, estilo, duracao):
 
@@ -94,8 +88,6 @@ palavras = texto.split()
 if len(palavras) > limite:
     texto = " ".join(palavras[:limite])
 return texto
-
-BUSCAR IMAGENS
 
 def buscar_imagens(tema, quantidade=6):
 
@@ -126,7 +118,7 @@ dados = resposta.json()
 fotos = dados.get("photos", [])
 if not fotos:
     raise Exception(
-        f"Nenhuma imagem encontrada para: {tema}"
+        "Nenhuma imagem encontrada."
     )
 imagens = []
 for foto in fotos:
@@ -138,13 +130,7 @@ for foto in fotos:
     )
     if link:
         imagens.append(link)
-if not imagens:
-    raise Exception(
-        "Pexels nao retornou imagens."
-    )
 return imagens
-
-PREPARAR IMAGEM
 
 def preparar_imagem(url, caminho):
 
@@ -206,8 +192,6 @@ try:
 except:
     pass
 
-CRIAR VIDEO
-
 def criar_video(tema, estilo, duracao):
 
 sessao = str(uuid.uuid4())[:8]
@@ -239,18 +223,15 @@ for i, url in enumerate(imagens_urls):
     )
     caminhos_imagens.append(caminho)
 quantidade = len(caminhos_imagens)
-tempo_por_imagem = (
-    duracao / quantidade
-)
+tempo_por_imagem = duracao / quantidade
 clips = []
 video = None
 try:
     for caminho in caminhos_imagens:
-        clip = (
-            ImageClip(caminho)
-            .with_duration(
-                tempo_por_imagem
-            )
+        clip = ImageClip(
+            caminho
+        ).with_duration(
+            tempo_por_imagem
         )
         clips.append(clip)
     video = concatenate_videoclips(
@@ -284,8 +265,6 @@ finally:
             pass
 return nome_video, roteiro
 
-HTML
-
 HTML = “””
 
 <!DOCTYPE html>
@@ -318,7 +297,6 @@ label {
     margin-top: 15px;
     margin-bottom: 7px;
 }
-input,
 select,
 button {
     width: 100%;
@@ -333,7 +311,6 @@ button {
     background: #00c853;
     color: white;
     font-weight: bold;
-    cursor: pointer;
 }
 .info {
     margin-top: 15px;
@@ -357,13 +334,12 @@ a {
     background: #222;
     padding: 15px;
     border-radius: 10px;
-    line-height: 1.5;
 }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>🎬 Reel Maker</h1>
+<h1>Reel Maker</h1>
 <div class="card">
 <form method="POST">
 
@@ -397,33 +373,33 @@ Duracao
 <option value="60">60 segundos</option>
 </select>
 <button type="submit">
-🎬 CRIAR REEL
+CRIAR REEL
 </button>
 </form>
 <div class="info">
 
-🖼️ Imagens automaticas do Pexels
-🎵 Sem musica
-🎙️ Sem narracao
-📝 Sem texto sobre o video
-📱 Formato vertical 540x960
-⏱️ Ate 60 segundos
+Imagens automaticas do Pexels
+Sem musica
+Sem narracao
+Sem texto sobre o video
+Formato vertical 540x960
+Ate 60 segundos
 
 </div>
 
 {% if resultado %}
 
 <div class="success">
-<h3>✅ Video criado!</h3>
+<h3>Video criado!</h3>
 <p>
 <a href="/download/{{ resultado }}">
-⬇️ BAIXAR VIDEO
+BAIXAR VIDEO
 </a>
 </p>
 </div>
 <div class="roteiro">
 
-💡 Ideia usada:
+Ideia usada:
 
 <p>
 {{ roteiro }}
@@ -436,7 +412,7 @@ Duracao
 
 <div class="success">
 
-❌ Erro:
+Erro:
 
 <p>
 {{ erro }}
@@ -450,8 +426,6 @@ Duracao
 </body>
 </html>
 """
-
-ROTA PRINCIPAL
 
 @app.route(”/”, methods=[“GET”, “POST”])
 def index():
@@ -493,8 +467,6 @@ return render_template_string(
     erro=erro
 )
 
-DOWNLOAD
-
 @app.route(”/download/”)
 def download(nome):
 
@@ -508,8 +480,6 @@ return send_file(
     caminho,
     as_attachment=True
 )
-
-INICIAR
 
 if name == “main”:
 
