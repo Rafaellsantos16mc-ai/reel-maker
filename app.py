@@ -9,11 +9,7 @@ from PIL import Image
 
 app = Flask(name)
 
-============================================================
-
-CONFIGURAÇÕES
-
-============================================================
+CONFIGURACOES
 
 PORT = int(os.environ.get(“PORT”, “8080”))
 
@@ -29,66 +25,61 @@ IMAGES_DIR = “imagens”
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
-============================================================
-
-ROTEIROS / TEMAS
-
-============================================================
+ROTEIROS
 
 ROTEIROS = {
 “Motivacional”: [
-“Nunca desista dos seus objetivos. Cada pequeno passo conta. Continue trabalhando, continue acreditando e lembre-se: resultados levam tempo.”,
-“Você não precisa ser perfeito para começar. Precisa apenas começar. Todos os dias são uma nova oportunidade para evoluir e chegar mais perto dos seus sonhos.”,
-“Acredite no seu potencial. Mesmo quando ninguém estiver vendo seu esforço, continue. O resultado de hoje pode ser consequência da sua persistência de ontem.”
+“Nunca desista dos seus objetivos. Cada pequeno passo conta. Continue trabalhando e acreditando nos seus sonhos.”,
+“Voce nao precisa ser perfeito para comecar. Precisa apenas comecar. Todos os dias sao uma nova oportunidade para evoluir.”,
+“Acredite no seu potencial. Mesmo quando ninguem estiver vendo seu esforco, continue. A persistencia faz a diferenca.”
 ],
 
 "Dinheiro": [
-    "Cuidar do dinheiro começa com pequenas decisões. Evite gastos desnecessários, organize suas finanças e procure maneiras de aumentar sua renda.",
-    "Construir uma vida financeira melhor exige planejamento, disciplina e paciência. Pequenas economias feitas todos os dias podem fazer diferença no futuro.",
-    "Dinheiro não é apenas sobre ganhar mais. Também é sobre aprender a administrar melhor aquilo que você já ganha."
+    "Cuidar do dinheiro comeca com pequenas decisoes. Evite gastos desnecessarios, organize suas financas e procure aumentar sua renda.",
+    "Construir uma vida financeira melhor exige planejamento, disciplina e paciencia. Pequenas economias podem fazer diferenca no futuro.",
+    "Dinheiro nao e apenas sobre ganhar mais. Tambem e sobre aprender a administrar melhor aquilo que voce ja ganha."
 ],
 "Curiosidades": [
-    "Você sabia que existem milhares de curiosidades incríveis sobre o mundo? Todos os dias podemos descobrir algo novo sobre ciência, natureza e história.",
-    "O mundo está cheio de fatos surpreendentes. Algumas coisas que parecem impossíveis realmente existem e fazem parte da nossa realidade.",
-    "A natureza é cheia de fenômenos incríveis. Quanto mais aprendemos, mais percebemos o quanto ainda existe para descobrir."
+    "O mundo esta cheio de fatos surpreendentes. Algumas coisas que parecem impossiveis realmente existem.",
+    "A natureza e cheia de fenomenos incriveis. Quanto mais aprendemos, mais percebemos o quanto ainda existe para descobrir.",
+    "Todos os dias podemos descobrir algo novo sobre ciencia, natureza, animais e historia."
 ],
 "Futebol": [
-    "No futebol, cada segundo pode mudar completamente uma partida. Um gol, uma defesa ou uma decisão podem transformar toda a história do jogo.",
-    "O futebol é muito mais do que apenas marcar gols. Estratégia, preparação, concentração e trabalho em equipe fazem parte do caminho para a vitória.",
-    "Grandes jogadores não chegaram ao topo apenas pelo talento. Treinamento, disciplina e dedicação também fazem parte da trajetória."
+    "No futebol, cada segundo pode mudar completamente uma partida. Um gol, uma defesa ou uma decisao podem transformar o jogo.",
+    "O futebol e muito mais do que marcar gols. Estrategia, preparacao, concentracao e trabalho em equipe fazem parte do jogo.",
+    "Grandes jogadores nao chegaram ao topo apenas pelo talento. Treinamento, disciplina e dedicacao tambem fazem parte da trajetoria."
 ],
-"História": [
-    "A história é formada por acontecimentos que mudaram o mundo. Conhecer o passado ajuda a entender melhor o presente.",
-    "Grandes acontecimentos históricos influenciaram sociedades inteiras e deixaram marcas que continuam presentes até os dias de hoje.",
-    "Muitas coisas que fazem parte da nossa vida atualmente começaram com acontecimentos que ocorreram há centenas ou até milhares de anos."
+"Historia": [
+    "A historia e formada por acontecimentos que mudaram o mundo. Conhecer o passado ajuda a entender melhor o presente.",
+    "Grandes acontecimentos historicos influenciaram sociedades inteiras e deixaram marcas que continuam presentes.",
+    "Muitas coisas da nossa vida atual comecaram com acontecimentos de centenas ou milhares de anos atras."
 ],
 "Humor": [
-    "A vida seria muito mais fácil se viesse com manual de instruções. Mas como não veio, só nos resta aprender na prática e rir dos nossos próprios erros.",
-    "Tem dias em que tudo parece dar errado. Mas pelo menos podemos rir depois e transformar aquela situação em uma boa história.",
-    "A melhor parte de alguns problemas é poder contar a história depois e perceber que, no final, tudo acabou virando motivo para rir."
+    "A vida seria muito mais facil se viesse com manual de instrucoes. Como nao veio, so nos resta aprender na pratica.",
+    "Tem dias em que tudo parece dar errado. Mas pelo menos podemos rir depois e transformar tudo em uma boa historia.",
+    "A melhor parte de alguns problemas e poder contar a historia depois e perceber que virou motivo para rir."
 ],
 "Desenvolvimento pessoal": [
-    "Melhorar um pouco todos os dias pode gerar grandes mudanças ao longo do tempo. Tenha paciência com seu processo e continue avançando.",
-    "Aprender, praticar e corrigir fazem parte do crescimento. Não tenha medo de errar, porque os erros também podem ensinar.",
-    "Seu futuro é construído pelas decisões que você toma hoje. Comece com pequenas mudanças e mantenha a constância."
+    "Melhorar um pouco todos os dias pode gerar grandes mudancas ao longo do tempo. Tenha paciencia com seu processo.",
+    "Aprender, praticar e corrigir fazem parte do crescimento. Nao tenha medo de errar.",
+    "Seu futuro e construido pelas decisoes que voce toma hoje. Comece com pequenas mudancas e mantenha a constancia."
 ]
 
 }
 
-============================================================
-
 CRIAR ROTEIRO
-
-============================================================
 
 def criar_roteiro(tema, estilo, duracao):
 
-textos = ROTEIROS.get(tema, ROTEIROS["Motivacional"])
+textos = ROTEIROS.get(
+    tema,
+    ROTEIROS["Motivacional"]
+)
 texto = random.choice(textos)
 introducoes = [
     "Confira essa ideia: ",
-    "Você precisa saber disso: ",
-    "Olha só isso: "
+    "Voce precisa saber disso: ",
+    "Olha so isso: "
 ]
 texto = random.choice(introducoes) + texto
 if duracao == 10:
@@ -104,16 +95,14 @@ if len(palavras) > limite:
     texto = " ".join(palavras[:limite])
 return texto
 
-============================================================
-
-BUSCAR IMAGENS NO PEXELS
-
-============================================================
+BUSCAR IMAGENS
 
 def buscar_imagens(tema, quantidade=6):
 
 if not PEXELS_API_KEY:
-    raise Exception("PEXELS_API_KEY não está configurada no Railway.")
+    raise Exception(
+        "PEXELS_API_KEY nao esta configurada no Railway."
+    )
 url = "https://api.pexels.com/v1/search"
 headers = {
     "Authorization": PEXELS_API_KEY
@@ -131,13 +120,13 @@ resposta = requests.get(
 )
 if resposta.status_code != 200:
     raise Exception(
-        f"Erro Pexels: {resposta.status_code} - {resposta.text}"
+        f"Erro Pexels: {resposta.status_code}"
     )
 dados = resposta.json()
 fotos = dados.get("photos", [])
 if not fotos:
     raise Exception(
-        f"Nenhuma imagem encontrada para o tema: {tema}"
+        f"Nenhuma imagem encontrada para: {tema}"
     )
 imagens = []
 for foto in fotos:
@@ -150,14 +139,12 @@ for foto in fotos:
     if link:
         imagens.append(link)
 if not imagens:
-    raise Exception("Pexels não retornou imagens utilizáveis.")
+    raise Exception(
+        "Pexels nao retornou imagens."
+    )
 return imagens
 
-============================================================
-
-BAIXAR E PREPARAR IMAGEM
-
-============================================================
+PREPARAR IMAGEM
 
 def preparar_imagem(url, caminho):
 
@@ -169,13 +156,19 @@ resposta.raise_for_status()
 arquivo_temp = caminho + ".download"
 with open(arquivo_temp, "wb") as arquivo:
     arquivo.write(resposta.content)
-imagem = Image.open(arquivo_temp).convert("RGB")
+imagem = Image.open(
+    arquivo_temp
+).convert("RGB")
 largura, altura = imagem.size
 proporcao_destino = WIDTH / HEIGHT
 proporcao_original = largura / altura
 if proporcao_original > proporcao_destino:
-    nova_largura = int(altura * proporcao_destino)
-    esquerda = (largura - nova_largura) // 2
+    nova_largura = int(
+        altura * proporcao_destino
+    )
+    esquerda = (
+        largura - nova_largura
+    ) // 2
     imagem = imagem.crop(
         (
             esquerda,
@@ -185,8 +178,12 @@ if proporcao_original > proporcao_destino:
         )
     )
 else:
-    nova_altura = int(largura / proporcao_destino)
-    topo = (altura - nova_altura) // 2
+    nova_altura = int(
+        largura / proporcao_destino
+    )
+    topo = (
+        altura - nova_altura
+    ) // 2
     imagem = imagem.crop(
         (
             0,
@@ -209,16 +206,14 @@ try:
 except:
     pass
 
-============================================================
-
-CRIAR VÍDEO
-
-============================================================
+CRIAR VIDEO
 
 def criar_video(tema, estilo, duracao):
 
 sessao = str(uuid.uuid4())[:8]
-nome_video = f"reel_{sessao}_{duracao}s.mp4"
+nome_video = (
+    f"reel_{sessao}_{duracao}s.mp4"
+)
 caminho_video = os.path.join(
     VIDEOS_DIR,
     nome_video
@@ -228,9 +223,6 @@ roteiro = criar_roteiro(
     estilo,
     duracao
 )
-# --------------------------------------------------------
-# BUSCAR IMAGENS
-# --------------------------------------------------------
 imagens_urls = buscar_imagens(
     tema,
     quantidade=6
@@ -246,26 +238,25 @@ for i, url in enumerate(imagens_urls):
         caminho
     )
     caminhos_imagens.append(caminho)
-# --------------------------------------------------------
-# DIVIDIR TEMPO ENTRE AS IMAGENS
-# --------------------------------------------------------
 quantidade = len(caminhos_imagens)
-tempo_por_imagem = duracao / quantidade
+tempo_por_imagem = (
+    duracao / quantidade
+)
 clips = []
+video = None
 try:
     for caminho in caminhos_imagens:
         clip = (
             ImageClip(caminho)
-            .with_duration(tempo_por_imagem)
+            .with_duration(
+                tempo_por_imagem
+            )
         )
         clips.append(clip)
     video = concatenate_videoclips(
         clips,
         method="compose"
     )
-    # ----------------------------------------------------
-    # EXPORTAR
-    # ----------------------------------------------------
     video.write_videofile(
         caminho_video,
         fps=FPS,
@@ -275,14 +266,17 @@ try:
         threads=1,
         logger=None
     )
-    video.close()
 finally:
+    if video is not None:
+        try:
+            video.close()
+        except:
+            pass
     for clip in clips:
         try:
             clip.close()
         except:
             pass
-    # Limpar imagens temporárias
     for caminho in caminhos_imagens:
         try:
             os.remove(caminho)
@@ -290,11 +284,7 @@ finally:
             pass
 return nome_video, roteiro
 
-============================================================
-
 HTML
-
-============================================================
 
 HTML = “””
 
@@ -345,9 +335,6 @@ button {
     font-weight: bold;
     cursor: pointer;
 }
-button:hover {
-    opacity: 0.9;
-}
 .info {
     margin-top: 15px;
     padding: 12px;
@@ -387,7 +374,7 @@ Tema
 <option>Dinheiro</option>
 <option>Curiosidades</option>
 <option>Futebol</option>
-<option>História</option>
+<option>Historia</option>
 <option>Humor</option>
 <option>Desenvolvimento pessoal</option>
 </select>
@@ -398,10 +385,10 @@ Estilo
 <option>Viral</option>
 <option>Informativo</option>
 <option>Emocionante</option>
-<option>Rápido</option>
+<option>Rapido</option>
 </select>
 
-Duração
+Duracao
 
 <select name="duracao">
 <option value="10">10 segundos</option>
@@ -415,22 +402,22 @@ Duração
 </form>
 <div class="info">
 
-🖼️ Imagens automáticas do Pexels
-🎵 Sem música
-🎙️ Sem narração
-📝 Sem texto sobre o vídeo
+🖼️ Imagens automaticas do Pexels
+🎵 Sem musica
+🎙️ Sem narracao
+📝 Sem texto sobre o video
 📱 Formato vertical 540x960
-⏱️ Até 60 segundos
+⏱️ Ate 60 segundos
 
 </div>
 
 {% if resultado %}
 
 <div class="success">
-<h3>✅ Vídeo criado!</h3>
+<h3>✅ Video criado!</h3>
 <p>
 <a href="/download/{{ resultado }}">
-⬇️ BAIXAR VÍDEO
+⬇️ BAIXAR VIDEO
 </a>
 </p>
 </div>
@@ -464,11 +451,7 @@ Duração
 </html>
 """
 
-============================================================
-
 ROTA PRINCIPAL
-
-============================================================
 
 @app.route(”/”, methods=[“GET”, “POST”])
 def index():
@@ -494,7 +477,7 @@ if request.method == "POST":
         )
         if duracao not in [10, 15, 30, 60]:
             raise Exception(
-                "Duração inválida."
+                "Duracao invalida."
             )
         resultado, roteiro = criar_video(
             tema,
@@ -510,11 +493,7 @@ return render_template_string(
     erro=erro
 )
 
-============================================================
-
 DOWNLOAD
-
-============================================================
 
 @app.route(”/download/”)
 def download(nome):
@@ -524,17 +503,13 @@ caminho = os.path.join(
     nome
 )
 if not os.path.exists(caminho):
-    return "Vídeo não encontrado.", 404
+    return "Video nao encontrado.", 404
 return send_file(
     caminho,
     as_attachment=True
 )
 
-============================================================
-
 INICIAR
-
-============================================================
 
 if name == “main”:
 
