@@ -3,7 +3,7 @@ import random
 import uuid
 import requests
 from flask import Flask, request, render_template_string, send_file
-from moviepy import ImageClip, concatenate_videoclips
+from moviepy import ImageClip, CompositeVideoClip, vfx
 from PIL import Image
 app = Flask(__name__)
 # =========================
@@ -161,6 +161,14 @@ def preparar_imagem(url, session_id, numero):
                 nova_largura /
                 imagem.width
             )
+        # Deixa um pouco maior para permitir o zoom
+        margem_zoom = 1.15
+        nova_largura = int(
+            nova_largura * margem_zoom
+        )
+        nova_altura = int(
+            nova_altura * margem_zoom
+        )
         imagem = imagem.resize(
             (nova_largura, nova_altura),
             Image.LANCZOS
@@ -184,11 +192,32 @@ def preparar_imagem(url, session_id, numero):
         imagem.save(
             caminho_final,
             "JPEG",
-            quality=85
+            quality=88
         )
     if os.path.exists(caminho_original):
         os.remove(caminho_original)
     return caminho_final
+# =========================
+# CRIAR CLIP COM ZOOM
+# =========================
+def criar_clip_com_zoom(
+    caminho_img,
+    duracao,
+    zoom_in=True
+):
+    clip = ImageClip(caminho_img)
+    # Pequeno zoom progressivo
+    if zoom_in:
+        def zoom(t):
+            return 1.0 + (0.07 * (t / duracao))
+    else:
+        def zoom(t):
+            return 1.07 - (0.07 * (t / duracao))
+    clip = clip.resized(zoom)
+    # Mantém a imagem centralizada
+    clip = clip.with_position("center")
+    clip = clip.with_duration(duracao)
+    return clip
 # =========================
 # CRIAR VÍDEO
 # =========================
@@ -207,30 +236,48 @@ def criar_video(tema, estilo, duracao):
             len(links),
             5
         )
+        # Tempo de cada imagem
         duracao_imagem = (
             float(duracao) / quantidade
         )
+        # Transição entre imagens
+        transicao = min(
+            0.5,
+            duracao_imagem / 3
+        )
+        tempo_atual = 0
         for i in range(quantidade):
             caminho_img = preparar_imagem(
                 links[i],
                 session_id,
                 i
             )
-            clip = ImageClip(
-                caminho_img
-            ).with_duration(
-                duracao_imagem
+            clip = criar_clip_com_zoom(
+                caminho_img,
+                duracao_imagem,
+                zoom_in=(i % 2 == 0)
+            )
+            # Cada imagem começa um pouco antes
+            # da anterior terminar.
+            if i > 0:
+                tempo_atual -= transicao
+                clip = clip.with_effects([
+                    vfx.CrossFadeIn(transicao)
+                ])
+            clip = clip.with_start(
+                tempo_atual
             )
             clips.append(clip)
-        video = concatenate_videoclips(
+            tempo_atual += duracao_imagem
+        # Monta o vídeo vertical
+        video = CompositeVideoClip(
             clips,
-            method="compose"
+            size=(WIDTH, HEIGHT)
         )
-        if video.duration > float(duracao):
-            video = video.subclipped(
-                0,
-                float(duracao)
-            )
+        # Garante exatamente a duração escolhida
+        video = video.with_duration(
+            float(duracao)
+        )
         # =================================
         # SEM NARRAÇÃO
         # SEM MÚSICA
@@ -352,11 +399,15 @@ a:hover {
 <h1>🎬 Gerador de Reels</h1>
 <div class="caixa">
 <div class="aviso">
-🎬 Vídeo vertical automático.
+🎬 Vídeo vertical profissional.
+<br>
+🔍 Zoom suave nas imagens.
+<br>
+✨ Transições entre as imagens.
 <br>
 🔇 Sem narração.
 <br>
-🔇 Sem música de fundo.
+🔇 Sem música.
 <br>
 📝 Sem texto sobre o vídeo.
 </div>
@@ -390,7 +441,7 @@ a:hover {
 </option>
 </select>
 <button type="submit">
-🎬 CRIAR REEL
+🎬 CRIAR REEL PROFISSIONAL
 </button>
 </form>
 {% if mensagem %}
@@ -448,7 +499,7 @@ def index():
                 duracao
             )
             mensagem = (
-                "✅ Reel criado com sucesso!"
+                "✅ Reel profissional criado com sucesso!"
             )
         except Exception as erro:
             mensagem = (
