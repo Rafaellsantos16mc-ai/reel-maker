@@ -2,363 +2,311 @@ import os
 import random
 import uuid
 import requests
+
 from flask import Flask, request, render_template_string, send_file
-from gtts import gTTS
-from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
+from moviepy import ImageClip, concatenate_videoclips
 from PIL import Image
-# ============================================================
-# CONFIGURAÇÃO
-# ============================================================
-app = Flask(__name__)
-PORT = int(os.environ.get("PORT", "8080"))
+
+app = Flask(name)
+
+============================================================
+
+CONFIGURAÇÕES
+
+============================================================
+
+PORT = int(os.environ.get(“PORT”, “8080”))
+
 WIDTH = 540
 HEIGHT = 960
 FPS = 15
-PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
-VIDEOS_DIR = "videos"
-IMAGES_DIR = "imagens"
-AUDIO_DIR = "audios"
+
+PEXELS_API_KEY = os.environ.get(“PEXELS_API_KEY”)
+
+VIDEOS_DIR = “videos”
+IMAGES_DIR = “imagens”
+
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
-os.makedirs(AUDIO_DIR, exist_ok=True)
-# ============================================================
-# ROTEIROS
-# ============================================================
+
+============================================================
+
+ROTEIROS / TEMAS
+
+============================================================
+
 ROTEIROS = {
-    "Motivacional": [
-        "Você não precisa mudar sua vida inteira hoje. Precisa apenas começar. Pequenas decisões repetidas todos os dias podem mudar completamente o seu futuro. Enquanto muita gente espera a oportunidade perfeita, quem começa agora já está criando a própria oportunidade. Não pare.",
-        "Talvez você esteja mais perto do seu objetivo do que imagina. O problema é que resultados grandes quase nunca aparecem rapidamente. Continue trabalhando, continue aprendendo e continue tentando. Um dia você vai olhar para trás e perceber que cada pequeno passo valeu a pena.",
-        "Não espere sentir vontade para começar. A disciplina aparece justamente nos dias em que a motivação desaparece. Faça um pouco hoje, faça novamente amanhã e continue. O segredo não é ser perfeito. É não desistir."
-    ],
-    "Dinheiro": [
-        "Se você quer melhorar sua vida financeira, comece pelo básico. Gaste menos do que ganha, evite dívidas desnecessárias e aprenda uma habilidade que possa aumentar sua renda. Dinheiro não muda uma pessoa do dia para a noite. Mas bons hábitos financeiros podem mudar seu futuro.",
-        "Ganhar mais dinheiro é importante, mas saber administrar o que você ganha é fundamental. Antes de procurar a próxima forma de ganhar dinheiro, descubra para onde está indo o seu dinheiro hoje. Pequenas despesas repetidas podem consumir uma grande parte da sua renda.",
-        "Quer começar a construir uma vida financeira melhor? Pare de pensar apenas em economizar e comece também a pensar em aumentar sua capacidade de ganhar dinheiro. Aprenda, desenvolva habilidades e procure novas oportunidades. Sua renda pode crescer junto com o seu conhecimento."
-    ],
-    "Curiosidades": [
-        "Você sabia que o cérebro humano é capaz de consumir uma quantidade enorme de energia mesmo quando estamos parados? Isso acontece porque ele trabalha continuamente, controlando pensamentos, movimentos, memória e diversas funções do corpo. É uma das estruturas mais impressionantes da natureza.",
-        "Existe uma curiosidade sobre o sono que muita gente desconhece. Enquanto você dorme, seu cérebro continua trabalhando. Ele organiza informações, consolida memórias e participa de vários processos importantes para o funcionamento do organismo.",
-        "Você já percebeu como uma música pode trazer uma lembrança antiga quase instantaneamente? Isso acontece porque música, emoção e memória estão fortemente conectadas no cérebro. Por isso algumas músicas conseguem nos transportar para momentos específicos da nossa vida."
-    ],
-    "Futebol": [
-        "No futebol, uma partida pode mudar completamente em poucos minutos. Um gol muda a estratégia, um cartão pode alterar o comportamento de um jogador e uma substituição pode transformar o jogo. É justamente essa imprevisibilidade que faz milhões de pessoas acompanharem o esporte.",
-        "Você já reparou como os melhores jogadores parecem tomar decisões muito rapidamente? Isso acontece porque eles treinam repetidamente situações de jogo. Com experiência, muitas decisões deixam de ser pensadas conscientemente e passam a acontecer quase automaticamente.",
-        "No futebol, talento ajuda, mas preparação também faz diferença. Treinamento, posicionamento, leitura de jogo e tomada de decisão podem transformar completamente o desempenho de um jogador. Muitas vezes, o que parece facilidade é resultado de milhares de horas de treino."
-    ],
-    "História": [
-        "A história está cheia de acontecimentos que parecem inacreditáveis hoje. Impérios surgiram e desapareceram, cidades foram reconstruídas e invenções mudaram completamente a maneira como as pessoas viviam. Conhecer o passado ajuda a entender por que o mundo atual é como é.",
-        "Muitas das coisas que usamos diariamente possuem uma história muito mais antiga do que imaginamos. Algumas invenções passaram por décadas de mudanças até chegarem ao formato que conhecemos hoje. A tecnologia atual é resultado de muitas gerações de descobertas.",
-        "Grandes acontecimentos históricos raramente acontecem de uma hora para outra. Normalmente são resultado de pequenas decisões, conflitos, descobertas e mudanças que acontecem ao longo de muitos anos. Por isso estudar história é também entender como pequenas mudanças podem produzir grandes consequências."
-    ],
-    "Humor": [
-        "Eu prometi que hoje ia economizar dinheiro. Aí entrei em uma loja só para olhar. Cinco minutos depois estava pensando se realmente precisava daquele produto. Conclusão: meu dinheiro saiu mais rápido do que eu entrei na loja.",
-        "Você já percebeu que quando estamos com pressa tudo dá errado? A chave desaparece, o celular fica sem bateria e justamente naquele momento aparece um trânsito enorme. Parece que o universo escolheu aquele dia para testar nossa paciência.",
-        "O despertador toca e você pensa: só mais cinco minutos. Quando percebe, já passou meia hora. Aí você levanta correndo, procurando roupa, celular, chave e tentando lembrar por que decidiu dormir tarde. Todo dia é uma nova aventura."
-    ],
-    "Desenvolvimento pessoal": [
-        "Uma das melhores coisas que você pode fazer por você mesmo é aprender a dizer não. Não para tudo, mas para aquilo que tira seu tempo, sua energia e seu foco. Quando você aprende a escolher melhor onde coloca sua atenção, sua vida começa a mudar.",
-        "Você não precisa se comparar com todo mundo. Cada pessoa está vivendo uma realidade diferente. Compare você de hoje com quem você era ontem. Se estiver aprendendo, melhorando e avançando, mesmo que lentamente, já existe progresso.",
-        "Aprender uma habilidade nova pode parecer difícil no começo. Você erra, esquece e pensa em desistir. Mas depois de repetir várias vezes, aquilo começa a ficar natural. O segredo é aceitar ser iniciante antes de tentar ser bom."
-    ]
+“Motivacional”: [
+“Nunca desista dos seus objetivos. Cada pequeno passo conta. Continue trabalhando, continue acreditando e lembre-se: resultados levam tempo.”,
+“Você não precisa ser perfeito para começar. Precisa apenas começar. Todos os dias são uma nova oportunidade para evoluir e chegar mais perto dos seus sonhos.”,
+“Acredite no seu potencial. Mesmo quando ninguém estiver vendo seu esforço, continue. O resultado de hoje pode ser consequência da sua persistência de ontem.”
+],
+
+"Dinheiro": [
+    "Cuidar do dinheiro começa com pequenas decisões. Evite gastos desnecessários, organize suas finanças e procure maneiras de aumentar sua renda.",
+    "Construir uma vida financeira melhor exige planejamento, disciplina e paciência. Pequenas economias feitas todos os dias podem fazer diferença no futuro.",
+    "Dinheiro não é apenas sobre ganhar mais. Também é sobre aprender a administrar melhor aquilo que você já ganha."
+],
+"Curiosidades": [
+    "Você sabia que existem milhares de curiosidades incríveis sobre o mundo? Todos os dias podemos descobrir algo novo sobre ciência, natureza e história.",
+    "O mundo está cheio de fatos surpreendentes. Algumas coisas que parecem impossíveis realmente existem e fazem parte da nossa realidade.",
+    "A natureza é cheia de fenômenos incríveis. Quanto mais aprendemos, mais percebemos o quanto ainda existe para descobrir."
+],
+"Futebol": [
+    "No futebol, cada segundo pode mudar completamente uma partida. Um gol, uma defesa ou uma decisão podem transformar toda a história do jogo.",
+    "O futebol é muito mais do que apenas marcar gols. Estratégia, preparação, concentração e trabalho em equipe fazem parte do caminho para a vitória.",
+    "Grandes jogadores não chegaram ao topo apenas pelo talento. Treinamento, disciplina e dedicação também fazem parte da trajetória."
+],
+"História": [
+    "A história é formada por acontecimentos que mudaram o mundo. Conhecer o passado ajuda a entender melhor o presente.",
+    "Grandes acontecimentos históricos influenciaram sociedades inteiras e deixaram marcas que continuam presentes até os dias de hoje.",
+    "Muitas coisas que fazem parte da nossa vida atualmente começaram com acontecimentos que ocorreram há centenas ou até milhares de anos."
+],
+"Humor": [
+    "A vida seria muito mais fácil se viesse com manual de instruções. Mas como não veio, só nos resta aprender na prática e rir dos nossos próprios erros.",
+    "Tem dias em que tudo parece dar errado. Mas pelo menos podemos rir depois e transformar aquela situação em uma boa história.",
+    "A melhor parte de alguns problemas é poder contar a história depois e perceber que, no final, tudo acabou virando motivo para rir."
+],
+"Desenvolvimento pessoal": [
+    "Melhorar um pouco todos os dias pode gerar grandes mudanças ao longo do tempo. Tenha paciência com seu processo e continue avançando.",
+    "Aprender, praticar e corrigir fazem parte do crescimento. Não tenha medo de errar, porque os erros também podem ensinar.",
+    "Seu futuro é construído pelas decisões que você toma hoje. Comece com pequenas mudanças e mantenha a constância."
+]
+
 }
-# ============================================================
-# CRIAR ROTEIRO
-# ============================================================
+
+============================================================
+
+CRIAR ROTEIRO
+
+============================================================
+
 def criar_roteiro(tema, estilo, duracao):
-    lista = ROTEIROS.get(
-        estilo,
-        ROTEIROS["Motivacional"]
+
+textos = ROTEIROS.get(tema, ROTEIROS["Motivacional"])
+texto = random.choice(textos)
+introducoes = [
+    "Confira essa ideia: ",
+    "Você precisa saber disso: ",
+    "Olha só isso: "
+]
+texto = random.choice(introducoes) + texto
+if duracao == 10:
+    limite = 35
+elif duracao == 15:
+    limite = 50
+elif duracao == 30:
+    limite = 90
+else:
+    limite = 170
+palavras = texto.split()
+if len(palavras) > limite:
+    texto = " ".join(palavras[:limite])
+return texto
+
+============================================================
+
+BUSCAR IMAGENS NO PEXELS
+
+============================================================
+
+def buscar_imagens(tema, quantidade=6):
+
+if not PEXELS_API_KEY:
+    raise Exception("PEXELS_API_KEY não está configurada no Railway.")
+url = "https://api.pexels.com/v1/search"
+headers = {
+    "Authorization": PEXELS_API_KEY
+}
+params = {
+    "query": tema,
+    "orientation": "portrait",
+    "per_page": quantidade
+}
+resposta = requests.get(
+    url,
+    headers=headers,
+    params=params,
+    timeout=30
+)
+if resposta.status_code != 200:
+    raise Exception(
+        f"Erro Pexels: {resposta.status_code} - {resposta.text}"
     )
-    texto = random.choice(lista)
-    introducoes = [
-        f"Falando sobre {tema}, existe uma coisa importante para entender.",
-        f"Se você está pensando em {tema}, preste atenção nisso.",
-        f"Quando o assunto é {tema}, muita gente esquece de uma coisa."
-    ]
-    introducao = random.choice(introducoes)
-    texto_final = introducao + " " + texto
-    palavras = texto_final.split()
-    if duracao <= 10:
-        texto_final = " ".join(palavras[:42])
-    elif duracao <= 15:
-        texto_final = " ".join(palavras[:58])
-    else:
-        texto_final = " ".join(palavras[:105])
-    return texto_final
-# ============================================================
-# GERAR NARRAÇÃO
-# ============================================================
-def gerar_narracao(texto, session_id):
-    caminho = os.path.join(
-        AUDIO_DIR,
-        f"narracao_{session_id}.mp3"
+dados = resposta.json()
+fotos = dados.get("photos", [])
+if not fotos:
+    raise Exception(
+        f"Nenhuma imagem encontrada para o tema: {tema}"
     )
-    voz = gTTS(
-        text=texto,
-        lang="pt-br",
-        slow=False
+imagens = []
+for foto in fotos:
+    src = foto.get("src", {})
+    link = (
+        src.get("large2x")
+        or src.get("large")
+        or src.get("original")
     )
-    voz.save(caminho)
-    return caminho
-# ============================================================
-# BUSCAR IMAGENS
-# ============================================================
-def buscar_imagens(tema):
-    if not PEXELS_API_KEY:
-        raise Exception(
-            "PEXELS_API_KEY não configurada no Railway."
-        )
-    resposta = requests.get(
-        "https://api.pexels.com/v1/search",
-        headers={
-            "Authorization": PEXELS_API_KEY
-        },
-        params={
-            "query": tema,
-            "per_page": 8,
-            "orientation": "portrait"
-        },
-        timeout=30
-    )
-    if resposta.status_code != 200:
-        raise Exception(
-            f"Erro Pexels: status {resposta.status_code}"
-        )
-    dados = resposta.json()
-    imagens = []
-    for foto in dados.get("photos", []):
-        src = foto.get("src", {})
-        link = (
-            src.get("large")
-            or src.get("medium")
-            or src.get("original")
-        )
-        if link:
-            imagens.append(link)
-    if not imagens:
-        raise Exception(
-            "Nenhuma imagem encontrada no Pexels para esse tema."
-        )
-    random.shuffle(imagens)
-    return imagens[:5]
-# ============================================================
-# PREPARAR IMAGEM
-# ============================================================
-def preparar_imagem(url, session_id, numero):
-    resposta = requests.get(
-        url,
-        timeout=30
-    )
-    if resposta.status_code != 200:
-        raise Exception(
-            "Erro ao baixar imagem do Pexels."
-        )
-    caminho_original = os.path.join(
-        IMAGES_DIR,
-        f"orig_{session_id}_{numero}.jpg"
-    )
-    caminho_final = os.path.join(
-        IMAGES_DIR,
-        f"img_{session_id}_{numero}.jpg"
-    )
-    with open(
-        caminho_original,
-        "wb"
-    ) as arquivo:
-        arquivo.write(resposta.content)
-    with Image.open(
-        caminho_original
-    ) as imagem:
-        imagem = imagem.convert("RGB")
-        proporcao_destino = WIDTH / HEIGHT
-        proporcao_imagem = imagem.width / imagem.height
-        if proporcao_imagem > proporcao_destino:
-            nova_altura = HEIGHT
-            nova_largura = int(
-                imagem.width
-                * nova_altura
-                / imagem.height
-            )
-        else:
-            nova_largura = WIDTH
-            nova_altura = int(
-                imagem.height
-                * nova_largura
-                / imagem.width
-            )
-        imagem = imagem.resize(
-            (
-                nova_largura,
-                nova_altura
-            ),
-            Image.LANCZOS
-        )
-        esquerda = max(
+    if link:
+        imagens.append(link)
+if not imagens:
+    raise Exception("Pexels não retornou imagens utilizáveis.")
+return imagens
+
+============================================================
+
+BAIXAR E PREPARAR IMAGEM
+
+============================================================
+
+def preparar_imagem(url, caminho):
+
+resposta = requests.get(
+    url,
+    timeout=30
+)
+resposta.raise_for_status()
+arquivo_temp = caminho + ".download"
+with open(arquivo_temp, "wb") as arquivo:
+    arquivo.write(resposta.content)
+imagem = Image.open(arquivo_temp).convert("RGB")
+largura, altura = imagem.size
+proporcao_destino = WIDTH / HEIGHT
+proporcao_original = largura / altura
+if proporcao_original > proporcao_destino:
+    nova_largura = int(altura * proporcao_destino)
+    esquerda = (largura - nova_largura) // 2
+    imagem = imagem.crop(
+        (
+            esquerda,
             0,
-            (imagem.width - WIDTH) // 2
+            esquerda + nova_largura,
+            altura
         )
-        topo = max(
+    )
+else:
+    nova_altura = int(largura / proporcao_destino)
+    topo = (altura - nova_altura) // 2
+    imagem = imagem.crop(
+        (
             0,
-            (imagem.height - HEIGHT) // 2
+            topo,
+            largura,
+            topo + nova_altura
         )
-        imagem = imagem.crop(
-            (
-                esquerda,
-                topo,
-                esquerda + WIDTH,
-                topo + HEIGHT
-            )
-        )
-        imagem.save(
-            caminho_final,
-            "JPEG",
-            quality=85
-        )
-    if os.path.exists(caminho_original):
-        os.remove(caminho_original)
-    return caminho_final
-# ============================================================
-# CRIAR VÍDEO
-# ============================================================
+    )
+imagem = imagem.resize(
+    (WIDTH, HEIGHT),
+    Image.LANCZOS
+)
+imagem.save(
+    caminho,
+    "JPEG",
+    quality=90
+)
+try:
+    os.remove(arquivo_temp)
+except:
+    pass
+
+============================================================
+
+CRIAR VÍDEO
+
+============================================================
+
 def criar_video(tema, estilo, duracao):
-    session_id = str(
-        uuid.uuid4()
-    )[:8]
-    roteiro = criar_roteiro(
-        tema,
-        estilo,
-        duracao
+
+sessao = str(uuid.uuid4())[:8]
+nome_video = f"reel_{sessao}_{duracao}s.mp4"
+caminho_video = os.path.join(
+    VIDEOS_DIR,
+    nome_video
+)
+roteiro = criar_roteiro(
+    tema,
+    estilo,
+    duracao
+)
+# --------------------------------------------------------
+# BUSCAR IMAGENS
+# --------------------------------------------------------
+imagens_urls = buscar_imagens(
+    tema,
+    quantidade=6
+)
+caminhos_imagens = []
+for i, url in enumerate(imagens_urls):
+    caminho = os.path.join(
+        IMAGES_DIR,
+        f"{sessao}_{i}.jpg"
     )
-    links = buscar_imagens(tema)
-    caminho_audio = gerar_narracao(
-        roteiro,
-        session_id
+    preparar_imagem(
+        url,
+        caminho
     )
-    audio = None
-    audio_final = None
-    video = None
-    clips = []
-    audio_cortado = False
-    try:
-        audio = AudioFileClip(
-            caminho_audio
+    caminhos_imagens.append(caminho)
+# --------------------------------------------------------
+# DIVIDIR TEMPO ENTRE AS IMAGENS
+# --------------------------------------------------------
+quantidade = len(caminhos_imagens)
+tempo_por_imagem = duracao / quantidade
+clips = []
+try:
+    for caminho in caminhos_imagens:
+        clip = (
+            ImageClip(caminho)
+            .with_duration(tempo_por_imagem)
         )
-        duracao_audio = float(
-            audio.duration
-        )
-        duracao_final = max(
-            float(duracao),
-            duracao_audio
-        )
-        duracao_final = min(
-            duracao_final,
-            float(duracao) + 5
-        )
-        quantidade = min(
-            len(links),
-            5
-        )
-        if quantidade == 0:
-            raise Exception(
-                "Nenhuma imagem disponível."
-            )
-        duracao_imagem = (
-            duracao_final / quantidade
-        )
-        for i in range(quantidade):
-            caminho_img = preparar_imagem(
-                links[i],
-                session_id,
-                i
-            )
-            clip = ImageClip(
-                caminho_img
-            ).with_duration(
-                duracao_imagem
-            )
-            clips.append(clip)
-        video = concatenate_videoclips(
-            clips,
-            method="compose"
-        )
-        if video.duration > duracao_final:
-            video = video.subclipped(
-                0,
-                duracao_final
-            )
-        if audio.duration > video.duration:
-            audio_final = audio.subclipped(
-                0,
-                video.duration
-            )
-            audio_cortado = True
-        else:
-            audio_final = audio
-        # SOMENTE NARRAÇÃO
-        video = video.with_audio(
-            audio_final
-        )
-        nome_video = (
-            f"reel_{session_id}.mp4"
-        )
-        caminho_video = os.path.join(
-            VIDEOS_DIR,
-            nome_video
-        )
-        video.write_videofile(
-            caminho_video,
-            fps=FPS,
-            codec="libx264",
-            audio_codec="aac",
-            preset="ultrafast",
-            threads=1,
-            logger=None
-        )
-        return nome_video, roteiro
-    finally:
-        if video is not None:
-            try:
-                video.close()
-            except Exception:
-                pass
-        if (
-            audio_cortado
-            and audio_final is not None
-        ):
-            try:
-                audio_final.close()
-            except Exception:
-                pass
-        if audio is not None:
-            try:
-                audio.close()
-            except Exception:
-                pass
-        for clip in clips:
-            try:
-                clip.close()
-            except Exception:
-                pass
-        if os.path.exists(caminho_audio):
-            try:
-                os.remove(caminho_audio)
-            except Exception:
-                pass
-# ============================================================
-# INTERFACE
-# ============================================================
-HTML = """
+        clips.append(clip)
+    video = concatenate_videoclips(
+        clips,
+        method="compose"
+    )
+    # ----------------------------------------------------
+    # EXPORTAR
+    # ----------------------------------------------------
+    video.write_videofile(
+        caminho_video,
+        fps=FPS,
+        codec="libx264",
+        audio=False,
+        preset="ultrafast",
+        threads=1,
+        logger=None
+    )
+    video.close()
+finally:
+    for clip in clips:
+        try:
+            clip.close()
+        except:
+            pass
+    # Limpar imagens temporárias
+    for caminho in caminhos_imagens:
+        try:
+            os.remove(caminho)
+        except:
+            pass
+return nome_video, roteiro
+
+============================================================
+
+HTML
+
+============================================================
+
+HTML = “””
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
-<title>🎬 Gerador de Reels</title>
+<title>Reel Maker</title>
 <style>
 body {
     font-family: Arial, sans-serif;
-    background: #111827;
+    background: #111;
     color: white;
     margin: 0;
     padding: 20px;
@@ -367,94 +315,74 @@ body {
     max-width: 600px;
     margin: auto;
 }
-.card {
-    background: white;
-    color: #111827;
-    padding: 25px;
-    border-radius: 20px;
-}
 h1 {
     text-align: center;
+}
+.card {
+    background: #1d1d1d;
+    padding: 20px;
+    border-radius: 15px;
 }
 label {
     display: block;
     margin-top: 15px;
-    font-weight: bold;
+    margin-bottom: 7px;
 }
 input,
-select {
+select,
+button {
     width: 100%;
     box-sizing: border-box;
     padding: 14px;
-    margin-top: 7px;
     border-radius: 10px;
-    border: 1px solid #ccc;
+    border: none;
     font-size: 16px;
 }
 button {
-    width: 100%;
-    padding: 16px;
-    margin-top: 25px;
-    border: none;
-    border-radius: 12px;
-    background: #111827;
+    margin-top: 20px;
+    background: #00c853;
     color: white;
-    font-size: 18px;
     font-weight: bold;
+    cursor: pointer;
 }
-.aviso {
-    background: #f3f4f6;
-    padding: 15px;
-    border-radius: 10px;
-    margin-top: 20px;
+button:hover {
+    opacity: 0.9;
 }
-.sucesso {
-    background: #dcfce7;
-    color: #166534;
-    padding: 15px;
-    border-radius: 10px;
-    margin-top: 20px;
-}
-.erro {
-    background: #fee2e2;
-    color: #991b1b;
-    padding: 15px;
-    border-radius: 10px;
-    margin-top: 20px;
-}
-.download {
-    display: block;
-    text-align: center;
-    background: #16a34a;
-    color: white;
-    text-decoration: none;
-    padding: 15px;
-    border-radius: 10px;
+.info {
     margin-top: 15px;
+    padding: 12px;
+    background: #292929;
+    border-radius: 10px;
+    font-size: 14px;
+}
+.success {
+    margin-top: 20px;
+    background: #123d20;
+    padding: 15px;
+    border-radius: 10px;
+}
+a {
+    color: #00e676;
     font-weight: bold;
 }
 .roteiro {
-    background: #f9fafb;
+    margin-top: 15px;
+    background: #222;
     padding: 15px;
     border-radius: 10px;
-    margin-top: 15px;
-    line-height: 1.6;
+    line-height: 1.5;
 }
 </style>
 </head>
 <body>
 <div class="container">
+<h1>🎬 Reel Maker</h1>
 <div class="card">
-<h1>🎬 Gerador de Reels</h1>
 <form method="POST">
-<label>Tema</label>
-<input
-    type="text"
-    name="tema"
-    placeholder="Ex: dinheiro, futebol, motivação..."
-    required>
-<label>Estilo</label>
-<select name="estilo">
+
+Tema
+
+<select name="tema">
 <option>Motivacional</option>
 <option>Dinheiro</option>
 <option>Curiosidades</option>
@@ -463,128 +391,154 @@ button {
 <option>Humor</option>
 <option>Desenvolvimento pessoal</option>
 </select>
-<label>Duração</label>
+
+Estilo
+
+<select name="estilo">
+<option>Viral</option>
+<option>Informativo</option>
+<option>Emocionante</option>
+<option>Rápido</option>
+</select>
+
+Duração
+
 <select name="duracao">
 <option value="10">10 segundos</option>
-<option value="15" selected>15 segundos</option>
+<option value="15">15 segundos</option>
 <option value="30">30 segundos</option>
+<option value="60">60 segundos</option>
 </select>
 <button type="submit">
-🎙️ CRIAR REEL
+🎬 CRIAR REEL
 </button>
 </form>
-<div class="aviso">
-🎙️ Narração automática em português.<br>
-🎵 Sem música de fundo.<br>
-📝 Sem texto sobre o vídeo.
+<div class="info">
+
+🖼️ Imagens automáticas do Pexels
+🎵 Sem música
+🎙️ Sem narração
+📝 Sem texto sobre o vídeo
+📱 Formato vertical 540x960
+⏱️ Até 60 segundos
+
 </div>
-{% if mensagem %}
-{% if download %}
-<div class="sucesso">
-{{ mensagem }}
-</div>
-<a
-    class="download"
-    href="/download/{{ download }}">
-⬇️ BAIXAR REEL
+
+{% if resultado %}
+
+<div class="success">
+<h3>✅ Vídeo criado!</h3>
+<p>
+<a href="/download/{{ resultado }}">
+⬇️ BAIXAR VÍDEO
 </a>
-{% else %}
-<div class="erro">
-{{ mensagem }}
+</p>
 </div>
-{% endif %}
-{% endif %}
-{% if roteiro %}
 <div class="roteiro">
-<strong>📝 Roteiro utilizado:</strong>
-<br><br>
+
+💡 Ideia usada:
+
+<p>
 {{ roteiro }}
+</p>
 </div>
+
 {% endif %}
+
+{% if erro %}
+
+<div class="success">
+
+❌ Erro:
+
+<p>
+{{ erro }}
+</p>
+</div>
+
+{% endif %}
+
 </div>
 </div>
 </body>
 </html>
 """
-# ============================================================
-# ROTA PRINCIPAL
-# ============================================================
-@app.route(
-    "/",
-    methods=["GET", "POST"]
-)
+
+============================================================
+
+ROTA PRINCIPAL
+
+============================================================
+
+@app.route(”/”, methods=[“GET”, “POST”])
 def index():
-    mensagem = None
-    download = None
-    roteiro = None
-    if request.method == "POST":
-        try:
-            tema = request.form.get(
-                "tema",
-                ""
-            ).strip()
-            estilo = request.form.get(
-                "estilo",
-                "Motivacional"
-            )
-            duracao = int(
-                request.form.get(
-                    "duracao",
-                    "15"
-                )
-            )
-            if not tema:
-                raise Exception(
-                    "Digite um tema válido."
-                )
-            if duracao not in [10, 15, 30]:
-                raise Exception(
-                    "Duração inválida."
-                )
-            download, roteiro = criar_video(
-                tema,
-                estilo,
-                duracao
-            )
-            mensagem = (
-                "✅ Reel criado com sucesso!"
-            )
-        except Exception as erro:
-            mensagem = (
-                f"❌ Erro ao criar o vídeo: {erro}"
-            )
-    return render_template_string(
-        HTML,
-        mensagem=mensagem,
-        download=download,
-        roteiro=roteiro
-    )
-# ============================================================
-# DOWNLOAD
-# ============================================================
-@app.route(
-    "/download/<nome>"
-)
-def download_video(nome):
-    nome = os.path.basename(nome)
-    caminho = os.path.join(
-        VIDEOS_DIR,
-        nome
-    )
-    if not os.path.exists(caminho):
-        return (
-            "Vídeo não encontrado.",
-            404
+
+resultado = None
+roteiro = None
+erro = None
+if request.method == "POST":
+    try:
+        tema = request.form.get(
+            "tema",
+            "Motivacional"
         )
-    return send_file(
-        caminho,
-        as_attachment=True
-    )
-# ============================================================
-# EXECUÇÃO
-# ============================================================
-if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=PORT
-    )
+        estilo = request.form.get(
+            "estilo",
+            "Viral"
+        )
+        duracao = int(
+            request.form.get(
+                "duracao",
+                "30"
+            )
+        )
+        if duracao not in [10, 15, 30, 60]:
+            raise Exception(
+                "Duração inválida."
+            )
+        resultado, roteiro = criar_video(
+            tema,
+            estilo,
+            duracao
+        )
+    except Exception as e:
+        erro = str(e)
+return render_template_string(
+    HTML,
+    resultado=resultado,
+    roteiro=roteiro,
+    erro=erro
+)
+
+============================================================
+
+DOWNLOAD
+
+============================================================
+
+@app.route(”/download/”)
+def download(nome):
+
+caminho = os.path.join(
+    VIDEOS_DIR,
+    nome
+)
+if not os.path.exists(caminho):
+    return "Vídeo não encontrado.", 404
+return send_file(
+    caminho,
+    as_attachment=True
+)
+
+============================================================
+
+INICIAR
+
+============================================================
+
+if name == “main”:
+
+app.run(
+    host="0.0.0.0",
+    port=PORT
+)
