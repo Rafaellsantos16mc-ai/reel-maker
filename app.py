@@ -3,8 +3,7 @@ import random
 import uuid
 import requests
 from flask import Flask, request, render_template_string, send_file
-from gtts import gTTS
-from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
+from moviepy import ImageClip, concatenate_videoclips
 from PIL import Image
 app = Flask(__name__)
 # =========================
@@ -16,10 +15,8 @@ FPS = 15
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
 VIDEOS_DIR = "videos"
 IMAGES_DIR = "imagens"
-AUDIO_DIR = "audios"
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
-os.makedirs(AUDIO_DIR, exist_ok=True)
 # =========================
 # ROTEIROS
 # =========================
@@ -83,21 +80,6 @@ def criar_roteiro(tema, estilo, duracao):
     else:
         texto_final = " ".join(palavras[:105])
     return texto_final
-# =========================
-# NARRAÇÃO
-# =========================
-def gerar_narracao(texto, session_id):
-    caminho = os.path.join(
-        AUDIO_DIR,
-        f"narracao_{session_id}.mp3"
-    )
-    voz = gTTS(
-        text=texto,
-        lang="pt-br",
-        slow=False
-    )
-    voz.save(caminho)
-    return caminho
 # =========================
 # PEXELS
 # =========================
@@ -218,30 +200,15 @@ def criar_video(tema, estilo, duracao):
         duracao
     )
     links = buscar_imagens(tema)
-    caminho_audio = gerar_narracao(
-        roteiro,
-        session_id
-    )
-    audio = None
-    video = None
     clips = []
+    video = None
     try:
-        audio = AudioFileClip(caminho_audio)
-        duracao_audio = float(audio.duration)
-        duracao_final = max(
-            float(duracao),
-            duracao_audio
-        )
-        duracao_final = min(
-            duracao_final,
-            float(duracao) + 5
-        )
         quantidade = min(
             len(links),
             5
         )
         duracao_imagem = (
-            duracao_final / quantidade
+            float(duracao) / quantidade
         )
         for i in range(quantidade):
             caminho_img = preparar_imagem(
@@ -259,22 +226,17 @@ def criar_video(tema, estilo, duracao):
             clips,
             method="compose"
         )
-        if video.duration > duracao_final:
+        if video.duration > float(duracao):
             video = video.subclipped(
                 0,
-                duracao_final
+                float(duracao)
             )
-        audio_final = audio
-        if audio.duration > video.duration:
-            audio_final = audio.subclipped(
-                0,
-                video.duration
-            )
-        # SOMENTE NARRAÇÃO
-        # Sem música de fundo.
-        video = video.with_audio(
-            audio_final
-        )
+        # =================================
+        # SEM NARRAÇÃO
+        # SEM MÚSICA
+        # SEM ÁUDIO
+        # =================================
+        video = video.without_audio()
         nome_video = f"reel_{session_id}.mp4"
         caminho_video = os.path.join(
             VIDEOS_DIR,
@@ -284,13 +246,11 @@ def criar_video(tema, estilo, duracao):
             caminho_video,
             fps=FPS,
             codec="libx264",
-            audio_codec="aac",
+            audio=False,
             preset="ultrafast",
             threads=1,
             logger=None
         )
-        if audio_final != audio:
-            audio_final.close()
         return nome_video, roteiro
     finally:
         if video is not None:
@@ -298,19 +258,9 @@ def criar_video(tema, estilo, duracao):
                 video.close()
             except Exception:
                 pass
-        if audio is not None:
-            try:
-                audio.close()
-            except Exception:
-                pass
         for clip in clips:
             try:
                 clip.close()
-            except Exception:
-                pass
-        if os.path.exists(caminho_audio):
-            try:
-                os.remove(caminho_audio)
             except Exception:
                 pass
 # =========================
@@ -402,9 +352,11 @@ a:hover {
 <h1>🎬 Gerador de Reels</h1>
 <div class="caixa">
 <div class="aviso">
-🎙️ Narração automática em português.
+🎬 Vídeo vertical automático.
 <br>
-🎵 Sem música de fundo.
+🔇 Sem narração.
+<br>
+🔇 Sem música de fundo.
 <br>
 📝 Sem texto sobre o vídeo.
 </div>
@@ -438,7 +390,7 @@ a:hover {
 </option>
 </select>
 <button type="submit">
-🎙️ CRIAR REEL
+🎬 CRIAR REEL
 </button>
 </form>
 {% if mensagem %}
