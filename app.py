@@ -2,21 +2,21 @@ import os
 import random
 import uuid
 import requests
-import textwrap
 
 from flask import Flask, request, render_template_string, send_file
-from moviepy import ImageClip, CompositeVideoClip, vfx
+from moviepy import ImageClip, CompositeVideoClip, concatenate_videoclips, vfx
 from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
 
 # ============================================================
-# CONFIGURACOES
+# CONFIGURAÇÕES
 # ============================================================
 
 WIDTH = 1080
 HEIGHT = 1920
 FPS = 30
+DURACAO = 60
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
 
@@ -29,188 +29,237 @@ os.makedirs(IMAGES_DIR, exist_ok=True)
 os.makedirs(LEGENDAS_DIR, exist_ok=True)
 
 # ============================================================
-# TEMAS
+# PAÍSES
 # ============================================================
 
-TEMAS = [
-    "Pontos positivos e negativos",
-    "Dicas de carros",
-    "Problemas comuns",
-    "Antes de comprar",
-    "Comparacao",
-    "Curiosidades",
-    "Manutencao e mecanica",
-    "Pergunta para o publico"
+PAISES = [
+    "Brasil",
+    "Suíça",
+    "Noruega",
+    "Islândia",
+    "Itália",
+    "França",
+    "Portugal",
+    "Espanha",
+    "Grécia",
+    "Alemanha",
+    "Áustria",
+    "Holanda",
+    "Inglaterra",
+    "Escócia",
+    "Irlanda",
+    "Dinamarca",
+    "Suécia",
+    "Finlândia",
+    "Croácia",
+    "Eslovênia",
+    "Turquia",
+    "Japão",
+    "Coreia do Sul",
+    "China",
+    "Tailândia",
+    "Indonésia",
+    "Maldivas",
+    "Filipinas",
+    "Vietnã",
+    "Austrália",
+    "Nova Zelândia",
+    "Canadá",
+    "Estados Unidos",
+    "México",
+    "Argentina",
+    "Chile",
+    "Peru",
+    "Colômbia",
+    "África do Sul",
+    "Marrocos",
+    "Egito",
+    "Emirados Árabes Unidos",
+    "Jordânia"
 ]
 
 # ============================================================
-# ROTEIRO
+# NOMES EM INGLÊS
+# Ajuda o Pexels a encontrar mais imagens
 # ============================================================
 
-def criar_roteiro(modelo, topico, duracao):
-    if topico == "Pontos positivos e negativos":
-        partes = [
-            f"Hoje vamos falar sobre o {modelo}.",
-            "Entre os pontos positivos estao conforto, dirigibilidade e praticidade.",
-            "Nos pontos negativos, e importante observar consumo, manutencao e preco das pecas.",
-            "Antes de comprar, confira o historico e o estado real do carro.",
-            "Voce compraria esse modelo?"
-        ]
-    elif topico == "Dicas de carros":
-        partes = [
-            f"Tem um {modelo}? Entao confira estas dicas.",
-            "Nao deixe de fazer as revisoes preventivas.",
-            "Confira regularmente oleo, filtros, pneus e freios.",
-            "Fique atento a barulhos, vazamentos e luzes no painel.",
-            "Qual dica voce acrescentaria?"
-        ]
-    elif topico == "Problemas comuns":
-        partes = [
-            f"Vai comprar um {modelo}? Fique atento a alguns pontos.",
-            "Confira motor, cambio, suspensao e sistema eletrico.",
-            "Observe barulhos diferentes, vazamentos e sinais de desgaste.",
-            "O historico de manutencao tambem faz muita diferenca.",
-            "Voce ja teve algum problema com esse modelo?"
-        ]
-    elif topico == "Antes de comprar":
-        partes = [
-            f"Pensando em comprar um {modelo} usado?",
-            "Comece verificando o motor e o cambio.",
-            "Depois confira suspensao, pneus, freios e parte eletrica.",
-            "Confira tambem documentos e historico de manutencao.",
-            "Nunca compre apenas pela aparencia."
-        ]
-    elif topico == "Comparacao":
-        partes = [
-            f"Vamos analisar o {modelo}.",
-            "Na hora de comparar carros, observe consumo e manutencao.",
-            "Tambem compare desempenho, conforto e espaco interno.",
-            "Confira o preco das pecas e a disponibilidade de manutencao.",
-            "Qual outro carro voce colocaria nessa comparacao?"
-        ]
-    elif topico == "Curiosidades":
-        partes = [
-            f"Voce conhece bem o {modelo}?",
-            "Esse carro possui detalhes que muita gente acaba nao conhecendo.",
-            "Versoes, motores e equipamentos podem mudar bastante.",
-            "Por isso, sempre confira a versao exata do carro.",
-            "Voce ja conhecia essas informacoes?"
-        ]
-    elif topico == "Manutencao e mecanica":
-        partes = [
-            f"Quer manter seu {modelo} em boas condicoes?",
-            "Comece pelas revisoes preventivas.",
-            "Confira oleo, filtros, freios, pneus, bateria e suspensao.",
-            "Nao espere aparecer um problema para fazer manutencao.",
-            "A manutencao preventiva pode evitar gastos maiores."
-        ]
-    else:
-        partes = [
-            f"O que voce acha do {modelo}?",
-            "Voce compraria esse carro?",
-            "Voce ja teve experiencia com esse modelo?",
-            "Qual versao voce escolheria?",
-            "Comente sua opiniao e diga qual carro devemos analisar depois."
-        ]
-    texto = " ".join(partes)
-    palavras = texto.split()
-    if duracao <= 10:
-        texto = " ".join(palavras[:42])
-    elif duracao <= 15:
-        texto = " ".join(palavras[:58])
-    else:
-        texto = " ".join(palavras[:105])
-    return texto
+PAISES_INGLES = {
+    "Brasil": "Brazil",
+    "Suíça": "Switzerland",
+    "Noruega": "Norway",
+    "Islândia": "Iceland",
+    "Itália": "Italy",
+    "França": "France",
+    "Portugal": "Portugal",
+    "Espanha": "Spain",
+    "Grécia": "Greece",
+    "Alemanha": "Germany",
+    "Áustria": "Austria",
+    "Holanda": "Netherlands",
+    "Inglaterra": "England",
+    "Escócia": "Scotland",
+    "Irlanda": "Ireland",
+    "Dinamarca": "Denmark",
+    "Suécia": "Sweden",
+    "Finlândia": "Finland",
+    "Croácia": "Croatia",
+    "Eslovênia": "Slovenia",
+    "Turquia": "Turkey",
+    "Japão": "Japan",
+    "Coreia do Sul": "South Korea",
+    "China": "China",
+    "Tailândia": "Thailand",
+    "Indonésia": "Indonesia",
+    "Maldivas": "Maldives",
+    "Filipinas": "Philippines",
+    "Vietnã": "Vietnam",
+    "Austrália": "Australia",
+    "Nova Zelândia": "New Zealand",
+    "Canadá": "Canada",
+    "Estados Unidos": "United States",
+    "México": "Mexico",
+    "Argentina": "Argentina",
+    "Chile": "Chile",
+    "Peru": "Peru",
+    "Colômbia": "Colombia",
+    "África do Sul": "South Africa",
+    "Marrocos": "Morocco",
+    "Egito": "Egypt",
+    "Emirados Árabes Unidos": "United Arab Emirates",
+    "Jordânia": "Jordan"
+}
 
 # ============================================================
-# BUSCA DE IMAGENS NO PEXELS
+# BUSCAR IMAGENS DO PAÍS
 # ============================================================
 
-def buscar_imagens_pexels(modelo, quantidade=5):
+def buscar_imagens_pexels(pais, quantidade=15):
+
     if not PEXELS_API_KEY:
-        raise Exception("PEXELS_API_KEY nao configurada no Railway.")
-    modelo = modelo.strip()
-    if not modelo:
-        raise Exception("Digite o modelo do carro.")
+        raise Exception(
+            "PEXELS_API_KEY não configurada no Railway."
+        )
+
+    pais_ingles = PAISES_INGLES.get(
+        pais,
+        pais
+    )
+
     url = "https://api.pexels.com/v1/search"
+
     headers = {
         "Authorization": PEXELS_API_KEY
     }
+
     # --------------------------------------------------------
-    # BUSCAS PRIORITARIAS
+    # BUSCAS ESPECÍFICAS
     # --------------------------------------------------------
+
     buscas = [
-        modelo,
-        f"{modelo} car",
-        f"{modelo} automobile",
-        f"{modelo} vehicle"
+        f"{pais_ingles} landscape",
+        f"{pais_ingles} nature",
+        f"{pais_ingles} beautiful places",
+        f"{pais_ingles} mountains",
+        f"{pais_ingles} tourism",
+        f"{pais_ingles} travel",
+        f"{pais_ingles} scenic",
+        f"{pais_ingles} beautiful landscape"
     ]
+
     fotos = []
     ids = set()
+
     for busca in buscas:
+
         if len(fotos) >= quantidade:
             break
+
         try:
+
             params = {
                 "query": busca,
                 "orientation": "portrait",
                 "size": "large",
-                "per_page": 30
+                "per_page": 40
             }
+
             resposta = requests.get(
                 url,
                 headers=headers,
                 params=params,
-                timeout=20
+                timeout=30
             )
+
             if resposta.status_code != 200:
                 continue
+
             dados = resposta.json()
+
             for foto in dados.get("photos", []):
+
                 foto_id = foto.get("id")
+
+                if not foto_id:
+                    continue
+
                 if foto_id in ids:
                     continue
+
                 src = foto.get("src", {})
+
                 imagem_url = (
                     src.get("large2x")
                     or src.get("large")
                     or src.get("original")
                 )
+
                 if not imagem_url:
                     continue
+
                 ids.add(foto_id)
+
                 fotos.append({
                     "id": foto_id,
                     "url": imagem_url,
+                    "pais": pais,
                     "query": busca
                 })
+
                 if len(fotos) >= quantidade:
                     break
+
         except Exception:
             continue
+
     # --------------------------------------------------------
-    # IMPORTANTE:
-    # NAO USAR MAIS IMAGENS GENERICAS DE CARROS.
+    # NÃO USAR IMAGEM GENÉRICA
     # --------------------------------------------------------
+
     if not fotos:
+
         raise Exception(
-            "Nao foram encontradas imagens para "
-            f"'{modelo}'. Tente informar o nome completo do carro."
+            f"Não foram encontradas imagens suficientes "
+            f"para {pais}."
         )
+
     return fotos
 
 # ============================================================
-# DOWNLOAD DAS IMAGENS
+# DOWNLOAD
 # ============================================================
 
 def baixar_imagem(url, caminho):
+
     resposta = requests.get(
         url,
-        timeout=30
+        timeout=40
     )
+
     resposta.raise_for_status()
+
     with open(caminho, "wb") as arquivo:
         arquivo.write(resposta.content)
+
     return caminho
 
 # ============================================================
@@ -218,13 +267,25 @@ def baixar_imagem(url, caminho):
 # ============================================================
 
 def preparar_imagem(caminho):
+
     imagem = Image.open(caminho).convert("RGB")
+
     proporcao_destino = WIDTH / HEIGHT
+
     largura, altura = imagem.size
+
     proporcao_atual = largura / altura
+
     if proporcao_atual > proporcao_destino:
-        nova_largura = int(altura * proporcao_destino)
-        esquerda = (largura - nova_largura) // 2
+
+        nova_largura = int(
+            altura * proporcao_destino
+        )
+
+        esquerda = (
+            largura - nova_largura
+        ) // 2
+
         imagem = imagem.crop(
             (
                 esquerda,
@@ -233,9 +294,17 @@ def preparar_imagem(caminho):
                 altura
             )
         )
+
     else:
-        nova_altura = int(largura / proporcao_destino)
-        topo = (altura - nova_altura) // 2
+
+        nova_altura = int(
+            largura / proporcao_destino
+        )
+
+        topo = (
+            altura - nova_altura
+        ) // 2
+
         imagem = imagem.crop(
             (
                 0,
@@ -244,11 +313,17 @@ def preparar_imagem(caminho):
                 topo + nova_altura
             )
         )
+
     imagem = imagem.resize(
         (WIDTH, HEIGHT),
         Image.Resampling.LANCZOS
     )
-    imagem.save(caminho, quality=95)
+
+    imagem.save(
+        caminho,
+        quality=95
+    )
+
     return caminho
 
 # ============================================================
@@ -256,161 +331,227 @@ def preparar_imagem(caminho):
 # ============================================================
 
 def encontrar_fonte(tamanho=60):
+
     caminhos = [
+
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+
         "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
     ]
+
     for caminho in caminhos:
+
         if os.path.exists(caminho):
-            return ImageFont.truetype(caminho, tamanho)
+
+            return ImageFont.truetype(
+                caminho,
+                tamanho
+            )
+
     return ImageFont.load_default()
 
 # ============================================================
-# CRIAR LEGENDA
+# LEGENDA
 # ============================================================
 
-def criar_legenda(texto, indice):
+def criar_legenda(pais):
+
     caminho = os.path.join(
         LEGENDAS_DIR,
-        f"legenda_{uuid.uuid4().hex}_{indice}.png"
+        f"legenda_{uuid.uuid4().hex}.png"
     )
+
     imagem = Image.new(
         "RGBA",
-        (WIDTH, 260),
+        (WIDTH, 240),
         (0, 0, 0, 0)
     )
+
     desenho = ImageDraw.Draw(imagem)
+
     fonte = encontrar_fonte(58)
-    linhas = textwrap.wrap(
+
+    texto = pais
+
+    caixa = desenho.textbbox(
+        (0, 0),
         texto,
-        width=30
+        font=fonte
     )
-    y = 30
-    for linha in linhas[:3]:
-        caixa = desenho.textbbox(
-            (0, 0),
-            linha,
-            font=fonte
-        )
-        largura_texto = caixa[2] - caixa[0]
-        x = (WIDTH - largura_texto) // 2
-        # Fundo da legenda
-        desenho.rounded_rectangle(
-            (
-                x - 25,
-                y - 10,
-                x + largura_texto + 25,
-                y + 70
-            ),
-            radius=20,
-            fill=(0, 0, 0, 190)
-        )
-        desenho.text(
-            (x, y),
-            linha,
-            font=fonte,
-            fill=(255, 255, 255, 255)
-        )
-        y += 75
+
+    largura_texto = (
+        caixa[2] - caixa[0]
+    )
+
+    altura_texto = (
+        caixa[3] - caixa[1]
+    )
+
+    x = (
+        WIDTH - largura_texto
+    ) // 2
+
+    y = 65
+
+    # Fundo transparente escuro
+    desenho.rounded_rectangle(
+        (
+            x - 35,
+            y - 20,
+            x + largura_texto + 35,
+            y + altura_texto + 25
+        ),
+        radius=25,
+        fill=(0, 0, 0, 180)
+    )
+
+    desenho.text(
+        (x, y),
+        texto,
+        font=fonte,
+        fill=(255, 255, 255, 255)
+    )
+
     imagem.save(caminho)
+
     return caminho
 
 # ============================================================
 # CLIP COM ZOOM
 # ============================================================
 
-def criar_clip_com_zoom(caminho, duracao):
+def criar_clip_com_zoom(
+    caminho,
+    duracao
+):
+
     clip = ImageClip(caminho)
-    clip = clip.with_duration(duracao)
-    # Pequeno zoom para deixar o video mais dinamico
-    clip = clip.resized(
-        lambda t: 1.0 + (0.06 * (t / duracao))
+
+    clip = clip.with_duration(
+        duracao
     )
-    clip = clip.with_position("center")
+
+    clip = clip.resized(
+        lambda t:
+        1.0 + (
+            0.05 *
+            (t / duracao)
+        )
+    )
+
+    clip = clip.with_position(
+        "center"
+    )
+
     return clip
 
 # ============================================================
-# CRIAR VIDEO
+# CRIAR VÍDEO
 # ============================================================
 
-def criar_video(imagens, texto, duracao):
-    nome_video = f"reel_{uuid.uuid4().hex}.mp4"
+def criar_video(
+    imagens,
+    pais
+):
+
+    if not imagens:
+
+        raise Exception(
+            "Nenhuma imagem disponível."
+        )
+
+    nome_video = (
+        f"paisagem_"
+        f"{uuid.uuid4().hex}.mp4"
+    )
+
     caminho_video = os.path.join(
         VIDEOS_DIR,
         nome_video
     )
-    quantidade_imagens = len(imagens)
-    if quantidade_imagens == 0:
-        raise Exception("Nenhuma imagem disponivel.")
-    duracao_por_imagem = duracao / quantidade_imagens
+
+    quantidade = len(imagens)
+
+    duracao_por_imagem = (
+        DURACAO / quantidade
+    )
+
     clips = []
+
+    # --------------------------------------------------------
+    # IMAGENS
+    # --------------------------------------------------------
+
     for indice, caminho in enumerate(imagens):
+
         clip = criar_clip_com_zoom(
             caminho,
             duracao_por_imagem
         )
+
         if indice > 0:
+
             clip = clip.with_effects([
-                vfx.CrossFadeIn(0.35)
+                vfx.CrossFadeIn(0.7)
             ])
+
         clips.append(clip)
+
+    # --------------------------------------------------------
+    # VÍDEO
+    # --------------------------------------------------------
+
     video = CompositeVideoClip(
         clips,
         size=(WIDTH, HEIGHT)
     )
-    video = video.with_duration(duracao)
+
+    video = video.with_duration(
+        DURACAO
+    )
+
     # --------------------------------------------------------
-    # LEGENDAS AUTOMATICAS
+    # NOME DO PAÍS
     # --------------------------------------------------------
-    palavras = texto.split()
-    quantidade_blocos = max(
-        1,
-        min(6, len(palavras) // 5)
+
+    caminho_legenda = criar_legenda(
+        pais
     )
-    tamanho_bloco = max(
-        1,
-        len(palavras) // quantidade_blocos
+
+    legenda = ImageClip(
+        caminho_legenda
     )
-    blocos = []
-    for i in range(0, len(palavras), tamanho_bloco):
-        bloco = " ".join(
-            palavras[i:i + tamanho_bloco]
-        )
-        if bloco:
-            blocos.append(bloco)
-    legenda_clips = []
-    tempo_por_bloco = duracao / max(
-        1,
-        len(blocos)
+
+    legenda = legenda.with_duration(
+        DURACAO
     )
-    for indice, bloco in enumerate(blocos):
-        caminho_legenda = criar_legenda(
-            bloco,
-            indice
-        )
-        legenda = ImageClip(
-            caminho_legenda
-        )
-        legenda = legenda.with_duration(
-            tempo_por_bloco
-        )
-        legenda = legenda.with_start(
-            indice * tempo_por_bloco
-        )
-        legenda = legenda.with_position(
-            ("center", HEIGHT - 500)
-        )
-        legenda_clips.append(legenda)
-    if legenda_clips:
-        video_final = CompositeVideoClip(
-            [video] + legenda_clips,
-            size=(WIDTH, HEIGHT)
-        )
-    else:
-        video_final = video
-    # Sem musica e sem narracao
-    video_final = video_final.without_audio()
+
+    legenda = legenda.with_position(
+        ("center", HEIGHT - 420)
+    )
+
+    video_final = CompositeVideoClip(
+        [
+            video,
+            legenda
+        ],
+        size=(WIDTH, HEIGHT)
+    )
+
+    # --------------------------------------------------------
+    # SEM ÁUDIO
+    # --------------------------------------------------------
+
+    video_final = (
+        video_final.without_audio()
+    )
+
+    # --------------------------------------------------------
+    # EXPORTAR
+    # --------------------------------------------------------
+
     video_final.write_videofile(
         caminho_video,
         fps=FPS,
@@ -421,262 +562,433 @@ def criar_video(imagens, texto, duracao):
         threads=2,
         logger=None
     )
+
+    # Liberar memória
+
+    try:
+        video.close()
+        video_final.close()
+
+        for clip in clips:
+            clip.close()
+
+    except Exception:
+        pass
+
     return nome_video
 
 # ============================================================
-# PAGINA
+# HTML
 # ============================================================
 
 HTML = """
+
 <!DOCTYPE html>
+
 <html lang="pt-BR">
+
 <head>
+
 <meta charset="UTF-8">
-<title>Reel Maker Automotivo</title>
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>World Landscapes</title>
+
 <style>
+
 body {
-    background: #111;
+
+    background: #101010;
+
     color: white;
+
     font-family: Arial, sans-serif;
+
     padding: 20px;
+
 }
+
 .container {
+
     max-width: 600px;
+
     margin: auto;
+
 }
+
 h1 {
+
     text-align: center;
+
+    font-size: 28px;
+
 }
+
+.subtitulo {
+
+    text-align: center;
+
+    color: #bbb;
+
+    margin-bottom: 25px;
+
+}
+
 label {
+
     display: block;
+
     margin-top: 18px;
+
     margin-bottom: 7px;
+
+    font-weight: bold;
+
 }
-input,
+
 select,
 button {
+
     width: 100%;
-    padding: 15px;
+
+    padding: 16px;
+
     font-size: 17px;
+
     border-radius: 10px;
+
     border: none;
+
     box-sizing: border-box;
+
 }
-input,
+
 select {
+
     background: #222;
+
     color: white;
+
 }
+
 button {
+
     margin-top: 25px;
-    background: #e50914;
+
+    background: #1687ff;
+
     color: white;
+
     font-weight: bold;
+
     cursor: pointer;
+
 }
+
 button:hover {
+
     opacity: 0.9;
+
 }
+
 .status {
+
     margin-top: 20px;
+
     padding: 15px;
+
     background: #222;
+
     border-radius: 10px;
-}
-.download {
-    display: block;
-    margin-top: 20px;
-    padding: 15px;
-    background: green;
-    color: white;
-    text-align: center;
-    text-decoration: none;
-    border-radius: 10px;
-}
-.info {
-    margin-top: 20px;
-    background: #1d1d1d;
-    padding: 15px;
-    border-radius: 10px;
+
     line-height: 1.5;
+
 }
+
+.download {
+
+    display: block;
+
+    margin-top: 20px;
+
+    padding: 16px;
+
+    background: #18a558;
+
+    color: white;
+
+    text-align: center;
+
+    text-decoration: none;
+
+    border-radius: 10px;
+
+    font-weight: bold;
+
+}
+
+.info {
+
+    margin-top: 20px;
+
+    background: #1d1d1d;
+
+    padding: 18px;
+
+    border-radius: 10px;
+
+    line-height: 1.6;
+
+}
+
+.duracao {
+
+    margin-top: 15px;
+
+    background: #181818;
+
+    padding: 15px;
+
+    border-radius: 10px;
+
+    text-align: center;
+
+}
+
 </style>
+
 </head>
+
 <body>
+
 <div class="container">
-<h1>REEL MAKER AUTOMOTIVO</h1>
-<div class="info">
 
-Importante:
+<h1>🌎 WORLD LANDSCAPES</h1>
 
-Digite o modelo do carro o mais completo possivel.
-Exemplos:
+<div class="subtitulo">
 
-Honda Civic 2015
-Toyota Corolla 2020
-Chevrolet Onix 2022
-Volkswagen Golf 2017
+Paisagens incríveis do mundo
 
 </div>
+
+<div class="info">
+
+Escolha um país e o sistema irá buscar imagens de paisagens,
+natureza, lugares turísticos e cenários relacionados
+exclusivamente ao país escolhido.
+
+<br><br>
+
+<strong>Vídeo:</strong> 60 segundos<br>
+
+<strong>Formato:</strong> 1080 × 1920<br>
+
+<strong>Áudio:</strong> sem música e sem narração
+
+</div>
+
 <form method="POST">
 
-Modelo do carro
+<label>
 
-<input
-type="text"
-name="modelo"
-placeholder="Ex: Honda Civic 2015"
-required>
+🌍 Escolha o país
 
-Tipo de conteudo
+</label>
 
-<select name="topico">
+<select name="pais" required>
 
-{% for tema in temas %}
+{% for pais in paises %}
 
-<option value="{{ tema }}">
-{{ tema }}
+<option value="{{ pais }}">
+
+{{ pais }}
+
 </option>
 
 {% endfor %}
 
 </select>
 
-Duracao
+<div class="duracao">
 
-<select name="duracao">
-<option value="10">10 segundos</option>
-<option value="15">15 segundos</option>
-<option value="20">20 segundos</option>
-<option value="30">30 segundos</option>
-</select>
+🎬 Duração fixa: <strong>60 segundos</strong>
+
+</div>
+
 <button type="submit">
-CRIAR REEL
+
+CRIAR VÍDEO DE 60 SEGUNDOS
+
 </button>
+
 </form>
 
 {% if mensagem %}
 
 <div class="status">
+
 {{ mensagem }}
+
 </div>
 
 {% endif %}
 
 {% if download %}
 
-<a href="{{ download }}" class="download">
-BAIXAR VIDEO
+<a
+href="{{ download }}"
+class="download">
+
+⬇️ BAIXAR VÍDEO
+
 </a>
 
 {% endif %}
 
 </div>
+
 </body>
+
 </html>
+
 """
 
 # ============================================================
 # ROTA PRINCIPAL
 # ============================================================
 
-@app.route("/", methods=["GET", "POST"])
+@app.route(
+    "/",
+    methods=["GET", "POST"]
+)
+
 def index():
+
     mensagem = ""
+
     download = None
+
     if request.method == "POST":
+
         try:
-            modelo = request.form.get(
-                "modelo",
+
+            pais = request.form.get(
+                "pais",
                 ""
             ).strip()
-            topico = request.form.get(
-                "topico",
-                "Dicas de carros"
-            )
-            duracao = int(
-                request.form.get(
-                    "duracao",
-                    "15"
-                )
-            )
-            if not modelo:
+
+            if not pais:
+
                 raise Exception(
-                    "Digite o modelo do carro."
+                    "Escolha um país."
                 )
+
             mensagem = (
-                f"Buscando imagens especificas de "
-                f"'{modelo}'..."
+                f"🌎 Buscando paisagens "
+                f"de {pais}..."
             )
+
             # ------------------------------------------------
-            # BUSCAR SOMENTE IMAGENS RELACIONADAS AO MODELO
+            # BUSCAR IMAGENS
             # ------------------------------------------------
-            resultados = buscar_imagens_pexels(
-                modelo,
-                quantidade=5
+
+            resultados = (
+                buscar_imagens_pexels(
+                    pais,
+                    quantidade=15
+                )
             )
+
+            # Embaralhar para variar
+            random.shuffle(
+                resultados
+            )
+
             imagens = []
+
             # ------------------------------------------------
-            # BAIXAR IMAGENS
+            # BAIXAR
             # ------------------------------------------------
-            for indice, item in enumerate(resultados):
+
+            for indice, item in enumerate(
+                resultados
+            ):
+
                 nome = (
                     f"{uuid.uuid4().hex}_"
                     f"{indice}.jpg"
                 )
+
                 caminho = os.path.join(
                     IMAGES_DIR,
                     nome
                 )
+
                 try:
+
                     baixar_imagem(
                         item["url"],
                         caminho
                     )
+
                     preparar_imagem(
                         caminho
                     )
+
                     imagens.append(
                         caminho
                     )
+
                 except Exception:
+
                     continue
+
+            # ------------------------------------------------
+            # VERIFICAR
+            # ------------------------------------------------
+
             if not imagens:
+
                 raise Exception(
-                    "Nao foi possivel baixar "
-                    "imagens do modelo informado."
+                    f"Não foi possível baixar "
+                    f"imagens de {pais}."
                 )
+
             # ------------------------------------------------
-            # CRIAR ROTEIRO
+            # CRIAR VÍDEO
             # ------------------------------------------------
-            texto = criar_roteiro(
-                modelo,
-                topico,
-                duracao
+
+            mensagem = (
+                f"🎬 Criando vídeo de 60 segundos "
+                f"com paisagens de {pais}..."
             )
-            # ------------------------------------------------
-            # CRIAR VIDEO
-            # ------------------------------------------------
+
             nome_video = criar_video(
                 imagens,
-                texto,
-                duracao
+                pais
             )
+
             mensagem = (
-                f"Video criado com sucesso para "
-                f"{modelo}."
+                f"✅ Vídeo criado com sucesso! "
+                f"Pais: {pais}"
             )
+
             download = (
                 f"/download/{nome_video}"
             )
+
         except Exception as erro:
+
             mensagem = (
-                "Erro ao criar o video: "
+                "❌ Erro ao criar o vídeo: "
                 + str(erro)
             )
+
     return render_template_string(
         HTML,
-        temas=TEMAS,
+        paises=PAISES,
         mensagem=mensagem,
         download=download
     )
@@ -685,14 +997,24 @@ def index():
 # DOWNLOAD
 # ============================================================
 
-@app.route("/download/<nome>")
+@app.route(
+    "/download/<nome>"
+)
+
 def download_video(nome):
+
     caminho = os.path.join(
         VIDEOS_DIR,
         nome
     )
+
     if not os.path.exists(caminho):
-        return "Video nao encontrado.", 404
+
+        return (
+            "Vídeo não encontrado.",
+            404
+        )
+
     return send_file(
         caminho,
         as_attachment=True
@@ -703,12 +1025,14 @@ def download_video(nome):
 # ============================================================
 
 if __name__ == "__main__":
+
     port = int(
         os.environ.get(
             "PORT",
             "8080"
         )
     )
+
     app.run(
         host="0.0.0.0",
         port=port
