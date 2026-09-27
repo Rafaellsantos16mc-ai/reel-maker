@@ -3,13 +3,13 @@ import random
 import uuid
 import requests
 import subprocess
-import re
 
 from flask import Flask, request, render_template_string, send_file
 import imageio_ffmpeg
 
 
 app = Flask(__name__)
+
 
 # ============================================================
 # CONFIGURAÇÕES
@@ -82,15 +82,22 @@ PAISES = {
 
 
 # ============================================================
-# PÁGINA
+# INTERFACE
 # ============================================================
 
 HTML = """
 <!DOCTYPE html>
+
 <html lang="pt-BR">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+>
 
 <title>Nature Reel Maker</title>
 
@@ -139,6 +146,7 @@ select {
     border: none;
     font-size: 16px;
     margin-bottom: 20px;
+    box-sizing: border-box;
 }
 
 button {
@@ -146,7 +154,7 @@ button {
     padding: 16px;
     border: none;
     border-radius: 12px;
-    background: #ffffff;
+    background: white;
     color: #111;
     font-size: 17px;
     font-weight: bold;
@@ -164,11 +172,13 @@ button:hover {
     border-radius: 12px;
     color: #bbb;
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 1.7;
 }
 
 </style>
+
 </head>
+
 
 <body>
 
@@ -180,6 +190,7 @@ button:hover {
 Vídeos reais de lagos e cachoeiras
 </div>
 
+
 <div class="card">
 
 <form method="POST">
@@ -189,10 +200,15 @@ Vídeos reais de lagos e cachoeiras
 <select name="pais" required>
 
 {% for nome in paises %}
-<option value="{{ nome }}">{{ nome }}</option>
+
+<option value="{{ nome }}">
+{{ nome }}
+</option>
+
 {% endfor %}
 
 </select>
+
 
 <button type="submit">
 🎬 Criar Reel
@@ -200,12 +216,13 @@ Vídeos reais de lagos e cachoeiras
 
 </form>
 
+
 <div class="info">
 
-🌊 Apenas lagos e cachoeiras<br>
-🎥 Vídeo real<br>
+🌊 Lagos e cachoeiras<br>
+🎥 Um único vídeo real<br>
 🌎 Paisagens naturais<br>
-📱 Formato vertical 1080x1920<br>
+📱 1080 x 1920<br>
 ⏱️ Até 60 segundos<br>
 🔇 Sem música<br>
 🔇 Sem narração<br>
@@ -219,6 +236,7 @@ Vídeos reais de lagos e cachoeiras
 </div>
 
 </body>
+
 </html>
 """
 
@@ -231,10 +249,10 @@ def buscar_videos(query):
 
     if not PEXELS_API_KEY:
         raise Exception(
-            "PEXELS_API_KEY não configurada no Railway."
+            "A variável PEXELS_API_KEY não está configurada no Railway."
         )
 
-    url = "https://api.pexels.com/v1/videos/search"
+    url = "https://api.pexels.com/videos/search"
 
     headers = {
         "Authorization": PEXELS_API_KEY
@@ -251,7 +269,7 @@ def buscar_videos(query):
         url,
         headers=headers,
         params=params,
-        timeout=30
+        timeout=40
     )
 
     if response.status_code != 200:
@@ -265,7 +283,71 @@ def buscar_videos(query):
 
 
 # ============================================================
-# ESCOLHER VÍDEO
+# ESCOLHER ARQUIVO DO VÍDEO
+# ============================================================
+
+def escolher_arquivo(video):
+
+    arquivos = video.get("video_files", [])
+
+    candidatos = []
+
+    for arquivo in arquivos:
+
+        link = arquivo.get("link")
+
+        if not link:
+            continue
+
+        file_type = arquivo.get("file_type")
+
+        if file_type and file_type != "video/mp4":
+            continue
+
+        largura = int(
+            arquivo.get("width") or 0
+        )
+
+        altura = int(
+            arquivo.get("height") or 0
+        )
+
+        if largura <= 0 or altura <= 0:
+            continue
+
+        candidatos.append(arquivo)
+
+    if not candidatos:
+        return None
+
+    # Preferimos arquivos grandes,
+    # mas evitamos arquivos absurdamente pesados.
+    candidatos.sort(
+        key=lambda x: (
+            x.get("width", 0) * x.get("height", 0)
+        ),
+        reverse=True
+    )
+
+    # Primeiro tenta um arquivo 4K ou Full HD.
+    for arquivo in candidatos:
+
+        largura = int(
+            arquivo.get("width") or 0
+        )
+
+        altura = int(
+            arquivo.get("height") or 0
+        )
+
+        if largura <= 3840 and altura <= 2160:
+            return arquivo
+
+    return candidatos[0]
+
+
+# ============================================================
+# ESCOLHER O MELHOR VÍDEO
 # ============================================================
 
 def escolher_video(videos):
@@ -284,7 +366,8 @@ def escolher_video(videos):
         "aerial",
         "drone",
         "panoramic",
-        "view"
+        "view",
+        "nature"
     ]
 
     palavras_ruins = [
@@ -302,73 +385,59 @@ def escolher_video(videos):
         "boat",
         "ship",
         "restaurant",
-        "house"
+        "house",
+        "office"
     ]
 
     for video in videos:
 
-        duracao = int(video.get("duration", 0))
+        duracao = float(
+            video.get("duration") or 0
+        )
 
         if duracao < 5:
             continue
 
-        texto = str(video.get("url", "")).lower()
+        arquivo = escolher_arquivo(video)
+
+        if not arquivo:
+            continue
+
+        texto = str(
+            video.get("url", "")
+        ).lower()
 
         score = 0
 
         for palavra in palavras_boas:
+
             if palavra in texto:
-                score += 2
+                score += 3
 
         for palavra in palavras_ruins:
+
             if palavra in texto:
-                score -= 5
+                score -= 6
 
-        # Dá preferência para vídeos que já tenham 60 segundos
+        # Grande preferência para vídeos
+        # que conseguem fornecer os 60 segundos.
         if duracao >= DURATION:
-            score += 20
+            score += 50
 
-        # Dá preferência para vídeos longos
-        score += min(duracao, 120) / 5
+        # Preferência por vídeos longos.
+        score += min(duracao, 120) / 4
 
-        # Escolhe arquivos disponíveis
-        arquivos = video.get("video_files", [])
-
-        if not arquivos:
-            continue
-
-        melhores = []
-
-        for arquivo in arquivos:
-
-            link = arquivo.get("link")
-
-            if not link:
-                continue
-
-            if arquivo.get("file_type") != "video/mp4":
-                continue
-
-            largura = arquivo.get("width", 0)
-            altura = arquivo.get("height", 0)
-
-            if largura <= 0 or altura <= 0:
-                continue
-
-            melhores.append(arquivo)
-
-        if not melhores:
-            continue
-
-        # Preferir maior resolução
-        melhores.sort(
-            key=lambda x: (
-                x.get("width", 0) * x.get("height", 0)
-            ),
-            reverse=True
+        largura = int(
+            arquivo.get("width") or 0
         )
 
-        arquivo = melhores[0]
+        altura = int(
+            arquivo.get("height") or 0
+        )
+
+        # Boa resolução.
+        if largura >= 1920 and altura >= 1080:
+            score += 10
 
         candidatos.append({
             "video": video,
@@ -385,28 +454,34 @@ def escolher_video(videos):
         reverse=True
     )
 
-    # Pega entre os melhores para não ficar sempre no mesmo vídeo
-    melhores = candidatos[:10]
+    # Escolhe aleatoriamente entre alguns dos melhores
+    # para não gerar sempre exatamente o mesmo vídeo.
+    melhores = candidatos[:8]
 
     return random.choice(melhores)
 
 
 # ============================================================
-# DOWNLOAD DO VÍDEO
+# DOWNLOAD
 # ============================================================
 
 def baixar_video(url, destino):
 
+    print("⬇️ Baixando vídeo...")
+
     response = requests.get(
         url,
         stream=True,
-        timeout=120
+        timeout=180
     )
 
     if response.status_code != 200:
+
         raise Exception(
             f"Erro ao baixar vídeo: HTTP {response.status_code}"
         )
+
+    tamanho = 0
 
     with open(destino, "wb") as arquivo:
 
@@ -415,7 +490,21 @@ def baixar_video(url, destino):
         ):
 
             if bloco:
+
                 arquivo.write(bloco)
+
+                tamanho += len(bloco)
+
+    print(
+        f"✅ Download concluído: "
+        f"{tamanho / 1024 / 1024:.1f} MB"
+    )
+
+    if tamanho < 100000:
+
+        raise Exception(
+            "O vídeo baixado ficou muito pequeno ou está inválido."
+        )
 
 
 # ============================================================
@@ -424,27 +513,48 @@ def baixar_video(url, destino):
 
 def criar_reel(video_path, output_path):
 
+    print("🎬 Iniciando conversão...")
+
+    # O vídeo original normalmente é horizontal.
+    #
+    # Aqui ele é ampliado até preencher a tela vertical
+    # e depois cortado no centro.
+    #
+    # Não existe zoom artificial ao longo do vídeo.
+    filtro = (
+        "scale=1080:1920:"
+        "force_original_aspect_ratio=increase,"
+        "crop=1080:1920:"
+        "(iw-1080)/2:"
+        "(ih-1920)/2,"
+        "setsar=1"
+    )
+
     comando = [
+
         FFMPEG,
 
         "-y",
 
+        "-hide_banner",
+
+        "-loglevel",
+        "error",
+
         "-i",
         video_path,
 
+        "-map",
+        "0:v:0",
+
         "-vf",
-
-        (
-            "scale=1080:1920:"
-            "force_original_aspect_ratio=increase,"
-            "crop=1080:1920"
-        ),
-
-        "-r",
-        str(FPS),
+        filtro,
 
         "-t",
         str(DURATION),
+
+        "-r",
+        str(FPS),
 
         "-an",
 
@@ -455,13 +565,16 @@ def criar_reel(video_path, output_path):
         "veryfast",
 
         "-crf",
-        "20",
+        "22",
 
         "-pix_fmt",
         "yuv420p",
 
         "-movflags",
         "+faststart",
+
+        "-threads",
+        "2",
 
         output_path
     ]
@@ -470,19 +583,44 @@ def criar_reel(video_path, output_path):
         comando,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
+        timeout=600
     )
 
     if processo.returncode != 0:
 
+        erro = processo.stderr.strip()
+
+        if not erro:
+            erro = "Erro desconhecido do FFmpeg."
+
         raise Exception(
-            "Erro FFmpeg:\n"
-            + processo.stderr[-5000:]
+            "FFmpeg não conseguiu converter o vídeo:\n\n"
+            + erro[-8000:]
+        )
+
+    if not os.path.exists(output_path):
+
+        raise Exception(
+            "O FFmpeg terminou, mas o arquivo não foi criado."
+        )
+
+    tamanho = os.path.getsize(output_path)
+
+    print(
+        f"✅ Reel criado: "
+        f"{tamanho / 1024 / 1024:.1f} MB"
+    )
+
+    if tamanho < 100000:
+
+        raise Exception(
+            "O arquivo final ficou muito pequeno."
         )
 
 
 # ============================================================
-# GERAR
+# GERAR VÍDEO
 # ============================================================
 
 def gerar_video(pais):
@@ -492,66 +630,140 @@ def gerar_video(pais):
         pais
     )
 
-    # Várias buscas para aumentar a chance
-    # de encontrar uma paisagem realmente bonita.
     consultas = [
+
         f"{nome_pais} waterfall landscape",
+
         f"{nome_pais} beautiful waterfall nature",
+
         f"{nome_pais} lake landscape",
+
         f"{nome_pais} beautiful lake nature",
+
         f"{nome_pais} scenic waterfall",
+
         f"{nome_pais} scenic lake",
+
         f"{nome_pais} panoramic nature landscape",
+
         f"{nome_pais} mountain lake"
+
     ]
 
-    todos = []
-
     consultas_embaralhadas = consultas[:]
-    random.shuffle(consultas_embaralhadas)
 
-    for consulta in consultas_embaralhadas[:4]:
+    random.shuffle(
+        consultas_embaralhadas
+    )
 
-        videos = buscar_videos(consulta)
+    todos_videos = []
 
-        todos.extend(videos)
+    print("======================================")
+    print("🌎 PAÍS:", pais)
+    print("🔎 Procurando vídeos reais...")
+    print("======================================")
 
-        # Se já encontramos bastante material,
-        # não fazemos chamadas desnecessárias.
-        if len(todos) >= 80:
+    # Faz algumas buscas diferentes.
+    for consulta in consultas_embaralhadas[:5]:
+
+        print(
+            "🔎 Busca:",
+            consulta
+        )
+
+        try:
+
+            videos = buscar_videos(
+                consulta
+            )
+
+            todos_videos.extend(
+                videos
+            )
+
+        except Exception as erro:
+
+            print(
+                "⚠️ Erro nessa busca:",
+                erro
+            )
+
+        if len(todos_videos) >= 100:
+
             break
 
-    if not todos:
+    if not todos_videos:
+
         raise Exception(
             "Nenhum vídeo encontrado para esse país."
         )
 
-    escolhido = escolher_video(todos)
+    escolhido = escolher_video(
+        todos_videos
+    )
 
     if not escolhido:
+
         raise Exception(
-            "Não encontrei um vídeo adequado de natureza."
+            "Não encontrei um vídeo adequado de lago ou cachoeira."
         )
 
     video = escolhido["video"]
+
     arquivo = escolhido["arquivo"]
 
-    video_id = video.get("id")
-
-    url_video = arquivo["link"]
-
-    temp_name = (
-        f"{uuid.uuid4().hex}_original.mp4"
+    video_id = video.get(
+        "id",
+        "desconhecido"
     )
 
-    output_name = (
-        f"nature_{pais.lower().replace(' ', '_')}_"
-        f"{uuid.uuid4().hex[:8]}.mp4"
+    duracao = video.get(
+        "duration",
+        0
     )
+
+    largura = arquivo.get(
+        "width",
+        0
+    )
+
+    altura = arquivo.get(
+        "height",
+        0
+    )
+
+    url_video = arquivo.get(
+        "link"
+    )
+
+    if not url_video:
+
+        raise Exception(
+            "O Pexels não forneceu o arquivo do vídeo."
+        )
+
+    print("======================================")
+    print("🎥 VÍDEO ESCOLHIDO:", video_id)
+    print("⏱️ DURAÇÃO:", duracao, "segundos")
+    print(
+        "📐 RESOLUÇÃO:",
+        largura,
+        "x",
+        altura
+    )
+    print("======================================")
+
+    identificador = uuid.uuid4().hex
 
     temp_path = os.path.join(
         TEMP_DIR,
-        temp_name
+        f"{identificador}_original.mp4"
+    )
+
+    output_name = (
+        f"nature_"
+        f"{pais.lower().replace(' ', '_')}_"
+        f"{identificador[:8]}.mp4"
     )
 
     output_path = os.path.join(
@@ -560,14 +772,6 @@ def gerar_video(pais):
     )
 
     try:
-
-        print("====================================")
-        print("🌎 PAÍS:", pais)
-        print("🎥 VÍDEO PEXELS:", video_id)
-        print("⏱️ DURAÇÃO ORIGINAL:", video.get("duration"))
-        print("📐 RESOLUÇÃO:", arquivo.get("width"),
-              "x", arquivo.get("height"))
-        print("====================================")
 
         baixar_video(
             url_video,
@@ -583,28 +787,56 @@ def gerar_video(pais):
 
     finally:
 
+        # Apaga o vídeo original baixado
+        # depois de criar o Reel.
         if os.path.exists(temp_path):
 
             try:
-                os.remove(temp_path)
-            except:
-                pass
+
+                os.remove(
+                    temp_path
+                )
+
+                print(
+                    "🗑️ Arquivo temporário removido."
+                )
+
+            except Exception as erro:
+
+                print(
+                    "⚠️ Não foi possível remover temporário:",
+                    erro
+                )
 
 
 # ============================================================
-# ROTAS
+# PÁGINA PRINCIPAL
 # ============================================================
 
-@app.route("/", methods=["GET", "POST"])
+@app.route(
+    "/",
+    methods=["GET", "POST"]
+)
 def index():
 
     if request.method == "POST":
 
-        pais = request.form.get("pais")
+        pais = request.form.get(
+            "pais"
+        )
+
+        if not pais:
+
+            return (
+                "Selecione um país.",
+                400
+            )
 
         try:
 
-            caminho = gerar_video(pais)
+            caminho = gerar_video(
+                pais
+            )
 
             return send_file(
                 caminho,
@@ -613,10 +845,11 @@ def index():
                 mimetype="video/mp4"
             )
 
-        except Exception as e:
+        except subprocess.TimeoutExpired:
 
-            return f"""
+            return """
             <html>
+
             <body style="
                 background:#111;
                 color:white;
@@ -624,14 +857,12 @@ def index():
                 padding:30px;
             ">
 
-            <h2>❌ Erro ao criar vídeo</h2>
+            <h2>❌ Tempo excedido</h2>
 
-            <pre style="
-                white-space:pre-wrap;
-                background:#222;
-                padding:15px;
-                border-radius:10px;
-            ">{str(e)}</pre>
+            <p>
+            O processamento demorou mais do que o esperado.
+            Tente novamente.
+            </p>
 
             <br>
 
@@ -643,7 +874,51 @@ def index():
             </a>
 
             </body>
+
             </html>
+            """, 500
+
+        except Exception as erro:
+
+            print(
+                "❌ ERRO:",
+                erro
+            )
+
+            return f"""
+
+            <html>
+
+            <body style="
+                background:#111;
+                color:white;
+                font-family:Arial;
+                padding:25px;
+            ">
+
+            <h2>❌ Erro ao criar vídeo</h2>
+
+            <pre style="
+                white-space:pre-wrap;
+                background:#222;
+                padding:15px;
+                border-radius:10px;
+                overflow:auto;
+            ">{str(erro)}</pre>
+
+            <br>
+
+            <a
+            href="/"
+            style="color:white;"
+            >
+            ← Voltar
+            </a>
+
+            </body>
+
+            </html>
+
             """, 500
 
     return render_template_string(
@@ -661,18 +936,24 @@ def health():
 
     return {
         "status": "ok",
-        "app": "Nature Reel Maker"
+        "app": "Nature Reel Maker",
+        "type": "real videos",
+        "duration": DURATION,
+        "resolution": f"{WIDTH}x{HEIGHT}"
     }
 
 
 # ============================================================
-# RODAR
+# INICIAR
 # ============================================================
 
 if __name__ == "__main__":
 
     port = int(
-        os.getenv("PORT", "8080")
+        os.getenv(
+            "PORT",
+            "8080"
+        )
     )
 
     app.run(
