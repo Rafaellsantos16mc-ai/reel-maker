@@ -1,5 +1,6 @@
 import os
 import uuid
+import random
 import requests
 import subprocess
 
@@ -41,20 +42,15 @@ PAISES = [
     "Portugal",
     "Espanha",
     "Grécia",
-    "Alemanha",
     "Áustria",
-    "Holanda",
-    "Inglaterra",
     "Escócia",
     "Irlanda",
-    "Dinamarca",
     "Suécia",
     "Finlândia",
     "Croácia",
     "Eslovênia",
     "Turquia",
     "Japão",
-    "Coreia do Sul",
     "China",
     "Tailândia",
     "Indonésia",
@@ -72,8 +68,6 @@ PAISES = [
     "Colômbia",
     "África do Sul",
     "Marrocos",
-    "Egito",
-    "Emirados Árabes Unidos",
     "Jordânia"
 ]
 
@@ -87,20 +81,15 @@ PAISES_INGLES = {
     "Portugal": "Portugal",
     "Espanha": "Spain",
     "Grécia": "Greece",
-    "Alemanha": "Germany",
     "Áustria": "Austria",
-    "Holanda": "Netherlands",
-    "Inglaterra": "England",
     "Escócia": "Scotland",
     "Irlanda": "Ireland",
-    "Dinamarca": "Denmark",
     "Suécia": "Sweden",
     "Finlândia": "Finland",
     "Croácia": "Croatia",
     "Eslovênia": "Slovenia",
     "Turquia": "Turkey",
     "Japão": "Japan",
-    "Coreia do Sul": "South Korea",
     "China": "China",
     "Tailândia": "Thailand",
     "Indonésia": "Indonesia",
@@ -118,14 +107,41 @@ PAISES_INGLES = {
     "Colômbia": "Colombia",
     "África do Sul": "South Africa",
     "Marrocos": "Morocco",
-    "Egito": "Egypt",
-    "Emirados Árabes Unidos": "United Arab Emirates",
     "Jordânia": "Jordan"
 }
 
 
 # ============================================================
-# BUSCAR FOTO
+# TIPOS DE PAISAGEM
+# ============================================================
+
+TIPOS_NATUREZA = [
+    "epic mountains",
+    "beautiful mountains",
+    "dramatic mountain landscape",
+    "waterfall",
+    "giant waterfall",
+    "beautiful waterfall",
+    "crystal clear lake",
+    "turquoise lake",
+    "mountain lake",
+    "alpine lake",
+    "glacier lake",
+    "fjord",
+    "dramatic valley",
+    "green valley",
+    "snow mountains",
+    "glacier mountains",
+    "pristine nature",
+    "wild nature",
+    "remote landscape",
+    "breathtaking nature",
+    "cinematic landscape"
+]
+
+
+# ============================================================
+# BUSCAR PAISAGEM EXÓTICA
 # ============================================================
 
 def buscar_imagem_pexels(pais):
@@ -146,15 +162,42 @@ def buscar_imagem_pexels(pais):
         "Authorization": PEXELS_API_KEY
     }
 
+    # Escolhe aleatoriamente um tipo de natureza
+    tipo1 = random.choice(TIPOS_NATUREZA)
+    tipo2 = random.choice(TIPOS_NATUREZA)
+
     buscas = [
-        f"{pais_ingles} scenic landscape",
-        f"{pais_ingles} beautiful nature",
-        f"{pais_ingles} breathtaking landscape",
-        f"{pais_ingles} scenic view",
-        f"{pais_ingles} travel photography",
-        f"{pais_ingles} mountains lake landscape",
-        f"{pais_ingles} beautiful places"
+        f"{pais_ingles} {tipo1}",
+        f"{pais_ingles} {tipo2}",
+        f"{pais_ingles} breathtaking nature",
+        f"{pais_ingles} spectacular landscape",
+        f"{pais_ingles} wild mountains",
+        f"{pais_ingles} pristine nature",
+        f"{pais_ingles} exotic landscape"
     ]
+
+    # Palavras que queremos evitar
+    palavras_evitar = [
+        "car",
+        "cars",
+        "people",
+        "person",
+        "man",
+        "woman",
+        "city",
+        "street",
+        "building",
+        "hotel",
+        "restaurant",
+        "house",
+        "road",
+        "traffic",
+        "airport",
+        "shopping",
+        "fashion"
+    ]
+
+    candidatos = []
 
     for busca in buscas:
 
@@ -184,26 +227,35 @@ def buscar_imagem_pexels(pais):
                 []
             )
 
-            if not fotos:
-                continue
+            for foto in fotos:
 
-            foto = fotos[
-                uuid.uuid4().int % len(fotos)
-            ]
+                alt = (
+                    foto.get("alt")
+                    or ""
+                ).lower()
 
-            src = foto.get(
-                "src",
-                {}
-            )
+                # Ignora fotos com conteúdo urbano/pessoas
+                if any(
+                    palavra in alt
+                    for palavra in palavras_evitar
+                ):
+                    continue
 
-            imagem_url = (
-                src.get("large2x")
-                or src.get("large")
-                or src.get("original")
-            )
+                src = foto.get(
+                    "src",
+                    {}
+                )
 
-            if imagem_url:
-                return imagem_url
+                imagem_url = (
+                    src.get("large2x")
+                    or src.get("large")
+                    or src.get("original")
+                )
+
+                if imagem_url:
+                    candidatos.append(
+                        imagem_url
+                    )
 
         except Exception as erro:
 
@@ -211,13 +263,22 @@ def buscar_imagem_pexels(pais):
                 f"Erro na busca: {erro}"
             )
 
-    raise Exception(
-        f"Não encontrei uma imagem para {pais}."
+    if not candidatos:
+        raise Exception(
+            f"Não encontrei uma paisagem natural para {pais}."
+        )
+
+    # Remove duplicadas
+    candidatos = list(
+        dict.fromkeys(candidatos)
     )
+
+    # Escolhe uma imagem
+    return random.choice(candidatos)
 
 
 # ============================================================
-# BAIXAR FOTO
+# BAIXAR IMAGEM
 # ============================================================
 
 def baixar_imagem(url, caminho):
@@ -236,7 +297,7 @@ def baixar_imagem(url, caminho):
 
 
 # ============================================================
-# PREPARAR FOTO 9:16
+# PREPARAR IMAGEM
 # ============================================================
 
 def preparar_imagem(caminho):
@@ -250,6 +311,7 @@ def preparar_imagem(caminho):
     proporcao_destino = WIDTH / HEIGHT
     proporcao_atual = largura / altura
 
+    # Corte para 9:16
     if proporcao_atual > proporcao_destino:
 
         nova_largura = int(
@@ -288,6 +350,7 @@ def preparar_imagem(caminho):
             )
         )
 
+    # Redimensiona para o vídeo
     imagem = imagem.resize(
         (WIDTH, HEIGHT),
         Image.Resampling.LANCZOS
@@ -296,7 +359,8 @@ def preparar_imagem(caminho):
     imagem.save(
         caminho,
         "JPEG",
-        quality=92
+        quality=92,
+        optimize=True
     )
 
     imagem.close()
@@ -321,6 +385,9 @@ def criar_video(caminho_imagem):
 
     total_frames = DURACAO * FPS
 
+    # Zoom MUITO lento.
+    # Começa normal e termina com aproximadamente 12% de zoom.
+
     filtro = (
         "zoompan="
         "z='min(zoom+0.00008,1.12)':"
@@ -333,6 +400,7 @@ def criar_video(caminho_imagem):
 
     comando = [
         ffmpeg,
+
         "-y",
 
         "-loop",
@@ -384,7 +452,7 @@ def criar_video(caminho_imagem):
         )
 
         raise Exception(
-            "O FFmpeg não conseguiu criar o vídeo."
+            "Erro ao criar o vídeo com FFmpeg."
         )
 
     return caminho_video
@@ -406,7 +474,7 @@ HTML = """
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0">
 
-<title>Paisagens do Mundo</title>
+<title>Natureza Exótica</title>
 
 <style>
 
@@ -417,7 +485,7 @@ content="width=device-width, initial-scale=1.0">
 body {
     margin: 0;
     padding: 20px;
-    background: #111;
+    background: #101010;
     color: white;
     font-family: Arial, sans-serif;
     min-height: 100vh;
@@ -431,13 +499,14 @@ body {
 h1 {
     text-align: center;
     margin-top: 30px;
+    font-size: 30px;
 }
 
 .subtitulo {
     text-align: center;
     color: #aaa;
-    line-height: 1.5;
-    margin-bottom: 30px;
+    line-height: 1.6;
+    margin-bottom: 35px;
 }
 
 label {
@@ -464,6 +533,7 @@ button {
     color: #111;
     font-size: 18px;
     font-weight: bold;
+    cursor: pointer;
 }
 
 .info {
@@ -472,7 +542,13 @@ button {
     background: #1d1d1d;
     border-radius: 12px;
     color: #ccc;
-    line-height: 1.7;
+    line-height: 1.8;
+}
+
+.destaque {
+    text-align: center;
+    margin-top: 25px;
+    color: #ddd;
 }
 
 </style>
@@ -483,11 +559,14 @@ button {
 
 <div class="container">
 
-<h1>🌎 Paisagens do Mundo</h1>
+<h1>🏔️ Natureza Exótica</h1>
 
 <div class="subtitulo">
-Uma paisagem realista em vídeo,
-com zoom cinematográfico de 60 segundos.
+
+Montanhas gigantes, cachoeiras,
+lagos cristalinos, geleiras,
+fiordes e paisagens naturais incríveis.
+
 </div>
 
 <form method="POST" action="/criar">
@@ -507,19 +586,30 @@ com zoom cinematográfico de 60 segundos.
 </select>
 
 <button type="submit">
-🎬 Criar vídeo
+🌎 Criar vídeo
 </button>
 
 </form>
 
 <div class="info">
 
-📸 1 única imagem<br>
-🎥 Zoom lento e suave<br>
+🏔️ Montanhas<br>
+💧 Cachoeiras<br>
+🏞️ Lagos cristalinos<br>
+🧊 Geleiras<br>
+🌊 Fiordes<br>
+🌿 Vales naturais<br>
+📸 1 imagem real<br>
+🎥 Zoom cinematográfico<br>
 ⏱️ 60 segundos<br>
 📱 1080 × 1920<br>
-🔇 Sem música<br>
-🔇 Sem narração
+🔇 Sem música e sem narração
+
+</div>
+
+<div class="destaque">
+
+✨ Apenas natureza e paisagens
 
 </div>
 
@@ -532,7 +622,7 @@ com zoom cinematográfico de 60 segundos.
 
 
 # ============================================================
-# HOME
+# PÁGINA PRINCIPAL
 # ============================================================
 
 @app.route("/", methods=["GET"])
@@ -563,11 +653,11 @@ def criar():
     try:
 
         print(
-            f"🌎 País escolhido: {pais}"
+            f"🌎 País: {pais}"
         )
 
         print(
-            "🔎 Procurando paisagem..."
+            "🏔️ Procurando paisagem exótica..."
         )
 
         imagem_url = buscar_imagem_pexels(
@@ -609,10 +699,10 @@ def criar():
         )
 
         print(
-            "✅ Vídeo pronto!"
+            "✅ VÍDEO PRONTO!"
         )
 
-        # Apaga a imagem temporária
+        # Remove imagem temporária
         try:
 
             if os.path.exists(
@@ -657,6 +747,7 @@ def criar():
 
         return f"""
         <html>
+
         <body style="
             background:#111;
             color:white;
@@ -676,12 +767,13 @@ def criar():
         </a>
 
         </body>
+
         </html>
         """, 500
 
 
 # ============================================================
-# RODAR
+# EXECUÇÃO
 # ============================================================
 
 if __name__ == "__main__":
