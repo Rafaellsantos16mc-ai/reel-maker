@@ -3,38 +3,28 @@ import uuid
 import random
 import requests
 import subprocess
-
 from flask import Flask, request, render_template_string, send_file
 from PIL import Image
 from imageio_ffmpeg import get_ffmpeg_exe
-
 app = Flask(__name__)
-
 # ============================================================
 # CONFIGURAÇÕES
 # ============================================================
-
 WIDTH = 1080
 HEIGHT = 1920
 FPS = 24
-
+DURACAO_IMAGEM = 30
 DURACAO_TOTAL = 60
-
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
-
 VIDEOS_DIR = "videos"
 IMAGES_DIR = "imagens"
 TEMP_DIR = "temp"
-
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
 os.makedirs(TEMP_DIR, exist_ok=True)
-
-
 # ============================================================
 # PAÍSES
 # ============================================================
-
 PAISES = [
     "Brasil",
     "Suíça",
@@ -73,8 +63,6 @@ PAISES = [
     "Marrocos",
     "Jordânia"
 ]
-
-
 PAISES_INGLES = {
     "Brasil": "Brazil",
     "Suíça": "Switzerland",
@@ -113,298 +101,263 @@ PAISES_INGLES = {
     "Marrocos": "Morocco",
     "Jordânia": "Jordan"
 }
-
-
 # ============================================================
-# BUSCAR UMA ÚNICA IMAGEM
+# PALAVRAS PROIBIDAS
 # ============================================================
-
-def buscar_imagem(pais):
-
+PALAVRAS_EVITAR = [
+    "car",
+    "cars",
+    "vehicle",
+    "road",
+    "street",
+    "traffic",
+    "person",
+    "people",
+    "man",
+    "woman",
+    "child",
+    "children",
+    "city",
+    "cityscape",
+    "urban",
+    "downtown",
+    "building",
+    "buildings",
+    "hotel",
+    "house",
+    "restaurant",
+    "airport",
+    "shopping",
+    "fashion",
+    "boat",
+    "ship",
+    "pool",
+    "swimming pool",
+    "office",
+    "architecture"
+]
+# ============================================================
+# BUSCAR FOTOS
+# ============================================================
+def buscar_fotos_pexels(query, quantidade=40):
+    url = "https://api.pexels.com/v1/search"
+    headers = {
+        "Authorization": PEXELS_API_KEY
+    }
+    params = {
+        "query": query,
+        "orientation": "portrait",
+        "size": "large",
+        "per_page": quantidade
+    }
+    resposta = requests.get(
+        url,
+        headers=headers,
+        params=params,
+        timeout=30
+    )
+    if resposta.status_code != 200:
+        print(
+            f"⚠️ Pexels HTTP {resposta.status_code}"
+        )
+        return []
+    dados = resposta.json()
+    return dados.get("photos", [])
+# ============================================================
+# BUSCAR DUAS IMAGENS DO MESMO LOCAL
+# ============================================================
+def buscar_duas_imagens(pais):
     if not PEXELS_API_KEY:
         raise Exception(
             "PEXELS_API_KEY não está configurada no Railway."
         )
-
     pais_ingles = PAISES_INGLES.get(
         pais,
         pais
     )
-
-    url = "https://api.pexels.com/v1/search"
-
-    headers = {
-        "Authorization": PEXELS_API_KEY
-    }
-
     # ========================================================
-    # BUSCAS
+    # PRIMEIRO: BUSCAR LOCAIS CONHECIDOS
     # ========================================================
-
-    buscas = [
-        f"{pais_ingles} beautiful natural lake",
-        f"{pais_ingles} crystal clear lake nature",
-        f"{pais_ingles} waterfall nature landscape",
+    consultas = [
+        f"{pais_ingles} famous waterfall lake",
+        f"{pais_ingles} famous lake waterfall",
+        f"{pais_ingles} natural lake waterfall",
+        f"{pais_ingles} turquoise lake waterfall",
         f"{pais_ingles} beautiful waterfall landscape",
-        f"{pais_ingles} turquoise lake mountains",
-        f"{pais_ingles} hidden waterfall nature"
+        f"{pais_ingles} crystal lake nature"
     ]
-
-    # ========================================================
-    # PALAVRAS QUE NÃO QUEREMOS
-    # ========================================================
-
-    palavras_evitar = [
-        "car",
-        "cars",
-        "vehicle",
-        "road",
-        "street",
-        "traffic",
-
-        "person",
-        "people",
-        "man",
-        "woman",
-        "child",
-        "children",
-
-        "city",
-        "building",
-        "buildings",
-        "hotel",
-        "house",
-        "restaurant",
-        "airport",
-        "shopping",
-        "fashion",
-
-        "boat",
-        "ship",
-
-        "pool",
-        "swimming pool",
-
-        "cityscape",
-        "urban",
-        "downtown",
-
-        "office",
-        "architecture"
-    ]
-
     candidatos = []
-
-    for busca in buscas:
-
+    for consulta in consultas:
+        print(
+            f"🔎 Buscando: {consulta}"
+        )
         try:
-
-            params = {
-                "query": busca,
-                "orientation": "portrait",
-                "size": "large",
-                "per_page": 40
-            }
-
-            resposta = requests.get(
-                url,
-                headers=headers,
-                params=params,
-                timeout=30
+            fotos = buscar_fotos_pexels(
+                consulta,
+                40
             )
-
-            if resposta.status_code != 200:
-                continue
-
-            dados = resposta.json()
-
-            fotos = dados.get(
-                "photos",
-                []
-            )
-
             for foto in fotos:
-
                 alt = (
                     foto.get("alt")
                     or ""
                 ).lower()
-
-                # Ignora imagens com elementos indesejados
                 if any(
                     palavra in alt
-                    for palavra in palavras_evitar
+                    for palavra in PALAVRAS_EVITAR
                 ):
                     continue
-
                 src = foto.get(
                     "src",
                     {}
                 )
-
                 imagem_url = (
                     src.get("large2x")
                     or src.get("large")
                     or src.get("original")
                 )
-
                 if not imagem_url:
                     continue
-
                 candidatos.append({
                     "id": foto.get("id"),
                     "url": imagem_url,
                     "alt": alt
                 })
-
         except Exception as erro:
-
             print(
-                f"Erro na busca Pexels: {erro}"
+                f"⚠️ Erro na consulta: {erro}"
             )
-
-    # ========================================================
-    # VERIFICAÇÃO
-    # ========================================================
-
-    if not candidatos:
-
-        raise Exception(
-            f"Não encontrei uma paisagem natural adequada para {pais}."
-        )
-
     # ========================================================
     # REMOVER DUPLICADAS
     # ========================================================
-
     unicos = {}
-
     for foto in candidatos:
-
-        foto_id = foto.get("id")
-
-        if foto_id:
-            unicos[foto_id] = foto
-
+        if foto["id"]:
+            unicos[
+                foto["id"]
+            ] = foto
     candidatos = list(
         unicos.values()
     )
-
+    if len(candidatos) < 2:
+        raise Exception(
+            f"Não encontrei duas imagens naturais para {pais}."
+        )
     # ========================================================
-    # PRIORIZAR TERMOS RELACIONADOS
+    # PALAVRAS IMPORTANTES
     # ========================================================
-
-    palavras_positivas = [
+    palavras_local = [
         "lake",
         "waterfall",
         "water",
-        "nature",
         "mountain",
-        "river",
+        "nature",
         "landscape",
-        "forest",
         "valley",
+        "forest",
         "turquoise",
         "crystal",
-        "clear",
-        "nature"
+        "river"
     ]
-
-    def pontuacao(foto):
-
+    def pontuar(foto):
         texto = foto["alt"]
-
         pontos = 0
-
-        for palavra in palavras_positivas:
-
+        for palavra in palavras_local:
             if palavra in texto:
                 pontos += 1
-
         return pontos
-
     candidatos.sort(
-        key=pontuacao,
+        key=pontuar,
         reverse=True
     )
-
-    # Pegamos somente os melhores resultados
-    melhores = candidatos[:15]
-
-    # Mistura entre os melhores para não ficar
-    # sempre escolhendo exatamente a mesma foto
-    random.shuffle(melhores)
-
-    escolhida = melhores[0]
-
-    print(
-        "🖼️ Imagem escolhida:"
+    # ========================================================
+    # TENTAR ENCONTRAR DUAS FOTOS PARECIDAS
+    # ========================================================
+    melhores = candidatos[:25]
+    random.shuffle(
+        melhores
     )
-
-    print(
-        escolhida["alt"]
+    primeira = melhores[0]
+    palavras_primeira = set(
+        primeira["alt"].split()
     )
-
-    return escolhida["url"]
-
-
+    segunda = None
+    maior_semelhanca = 0
+    for foto in melhores[1:]:
+        palavras_segunda = set(
+            foto["alt"].split()
+        )
+        semelhanca = len(
+            palavras_primeira
+            & palavras_segunda
+        )
+        if semelhanca > maior_semelhanca:
+            maior_semelhanca = semelhanca
+            segunda = foto
+    if segunda is None:
+        segunda = melhores[1]
+    print(
+        "===================================="
+    )
+    print(
+        "📍 PAIS:",
+        pais
+    )
+    print(
+        "🖼️ IMAGEM 1:",
+        primeira["alt"]
+    )
+    print(
+        "🖼️ IMAGEM 2:",
+        segunda["alt"]
+    )
+    print(
+        "🔗 Similaridade:",
+        maior_semelhanca
+    )
+    print(
+        "===================================="
+    )
+    return [
+        primeira["url"],
+        segunda["url"]
+    ]
 # ============================================================
 # BAIXAR IMAGEM
 # ============================================================
-
 def baixar_imagem(url, caminho):
-
     resposta = requests.get(
         url,
         timeout=45
     )
-
     resposta.raise_for_status()
-
     with open(
         caminho,
         "wb"
     ) as arquivo:
-
         arquivo.write(
             resposta.content
         )
-
-
 # ============================================================
-# PREPARAR IMAGEM 9:16
+# PREPARAR IMAGEM
 # ============================================================
-
 def preparar_imagem(caminho):
-
     imagem = Image.open(
         caminho
     ).convert("RGB")
-
     largura, altura = imagem.size
-
     proporcao_destino = (
         WIDTH / HEIGHT
     )
-
     proporcao_atual = (
         largura / altura
     )
-
-    # ========================================================
-    # CORTE CENTRAL
-    # ========================================================
-
     if proporcao_atual > proporcao_destino:
-
         nova_largura = int(
             altura * proporcao_destino
         )
-
         esquerda = (
             largura - nova_largura
         ) // 2
-
         imagem = imagem.crop(
             (
                 esquerda,
@@ -413,17 +366,13 @@ def preparar_imagem(caminho):
                 altura
             )
         )
-
     else:
-
         nova_altura = int(
             largura / proporcao_destino
         )
-
         topo = (
             altura - nova_altura
         ) // 2
-
         imagem = imagem.crop(
             (
                 0,
@@ -432,541 +381,448 @@ def preparar_imagem(caminho):
                 topo + nova_altura
             )
         )
-
-    # ========================================================
-    # RESIZE
-    # ========================================================
-
     imagem = imagem.resize(
         (WIDTH, HEIGHT),
         Image.Resampling.LANCZOS
     )
-
     imagem.save(
         caminho,
         "JPEG",
-        quality=94,
+        quality=95,
         optimize=True
     )
-
     imagem.close()
-
-
 # ============================================================
-# CRIAR VÍDEO DE 60 SEGUNDOS
+# CRIAR VÍDEO COM ZOOM MAIS RÁPIDO
 # ============================================================
-
-def criar_video(caminho_imagem):
-
+def criar_clipe_zoom(
+    caminho_imagem,
+    numero
+):
     ffmpeg = get_ffmpeg_exe()
-
-    nome_saida = (
-        f"paisagem_{uuid.uuid4().hex}.mp4"
-    )
-
     caminho_saida = os.path.join(
-        VIDEOS_DIR,
-        nome_saida
+        TEMP_DIR,
+        f"parte_{numero}_{uuid.uuid4().hex}.mp4"
     )
-
     total_frames = (
-        DURACAO_TOTAL * FPS
+        DURACAO_IMAGEM * FPS
     )
-
     # ========================================================
-    # MOVIMENTO CINEMATOGRÁFICO
+    # ZOOM
     #
     # Começa em 1.00x
-    # Termina em aproximadamente 1.25x
+    # Termina em aproximadamente 1.30x
     #
-    # Além do zoom existe um pequeno
-    # deslocamento horizontal/vertical.
+    # O zoom é propositalmente mais rápido.
     # ========================================================
-
     filtro = (
         "zoompan="
-        "z='min(zoom+0.00022,1.25)':"
-        "x='iw/2-(iw/zoom/2)+sin(on/90)*18':"
-        "y='ih/2-(ih/zoom/2)+cos(on/110)*12':"
+        "z='min(zoom+0.00042,1.30)':"
+        "x='iw/2-(iw/zoom/2)':"
+        "y='ih/2-(ih/zoom/2)':"
         f"d={total_frames}:"
         f"s={WIDTH}x{HEIGHT}:"
         f"fps={FPS}"
     )
-
     comando = [
-
         ffmpeg,
-
         "-y",
-
         "-loop",
         "1",
-
         "-i",
         caminho_imagem,
-
         "-vf",
         filtro,
-
         "-t",
-        str(DURACAO_TOTAL),
-
+        str(DURACAO_IMAGEM),
         "-an",
-
         "-c:v",
         "libx264",
-
         "-preset",
         "veryfast",
-
         "-crf",
-        "20",
-
+        "19",
         "-pix_fmt",
         "yuv420p",
-
         "-movflags",
         "+faststart",
-
         "-threads",
         "1",
-
         caminho_saida
     ]
-
     print(
-        "🎥 Criando vídeo de 60 segundos..."
+        f"🎥 Criando vídeo {numero}/2..."
     )
-
     resultado = subprocess.run(
         comando,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
     )
-
     if resultado.returncode != 0:
-
         print(
             resultado.stderr[-5000:]
         )
-
         raise Exception(
-            "Erro ao criar o vídeo."
+            f"Erro ao criar vídeo {numero}."
         )
-
     return caminho_saida
-
-
 # ============================================================
-# LIMPAR
+# JUNTAR OS DOIS VÍDEOS
 # ============================================================
-
-def limpar_arquivo(caminho):
-
+def juntar_videos(
+    video1,
+    video2
+):
+    ffmpeg = get_ffmpeg_exe()
+    nome_final = (
+        f"paisagem_{uuid.uuid4().hex}.mp4"
+    )
+    caminho_final = os.path.join(
+        VIDEOS_DIR,
+        nome_final
+    )
+    lista = os.path.join(
+        TEMP_DIR,
+        f"lista_{uuid.uuid4().hex}.txt"
+    )
+    with open(
+        lista,
+        "w",
+        encoding="utf-8"
+    ) as arquivo:
+        arquivo.write(
+            f"file '{os.path.abspath(video1)}'\n"
+        )
+        arquivo.write(
+            f"file '{os.path.abspath(video2)}'\n"
+        )
+    comando = [
+        ffmpeg,
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        lista,
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
+        caminho_final
+    ]
+    resultado = subprocess.run(
+        comando,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
     try:
-
-        if caminho and os.path.exists(
-            caminho
-        ):
-            os.remove(caminho)
-
+        os.remove(lista)
     except Exception:
         pass
-
-
+    if resultado.returncode != 0:
+        print(
+            resultado.stderr[-5000:]
+        )
+        raise Exception(
+            "Erro ao juntar os dois vídeos."
+        )
+    return caminho_final
+# ============================================================
+# LIMPAR ARQUIVOS
+# ============================================================
+def limpar_arquivos(lista):
+    for arquivo in lista:
+        try:
+            if arquivo and os.path.exists(
+                arquivo
+            ):
+                os.remove(
+                    arquivo
+                )
+        except Exception:
+            pass
 # ============================================================
 # INTERFACE
 # ============================================================
-
 HTML = """
 <!DOCTYPE html>
-
 <html lang="pt-BR">
-
 <head>
-
 <meta charset="UTF-8">
-
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0">
-
 <title>Lagos & Cachoeiras</title>
-
 <style>
-
 * {
     box-sizing: border-box;
 }
-
 body {
-
     margin: 0;
     padding: 20px;
-
     background: #101010;
-
     color: white;
-
     font-family: Arial, sans-serif;
-
     min-height: 100vh;
 }
-
 .container {
-
     max-width: 500px;
-
     margin: auto;
 }
-
 h1 {
-
     text-align: center;
-
     margin-top: 30px;
-
     font-size: 30px;
 }
-
 .subtitulo {
-
     text-align: center;
-
     color: #aaa;
-
     line-height: 1.6;
-
     margin-bottom: 35px;
 }
-
 label {
-
     display: block;
-
     margin-bottom: 10px;
-
     font-weight: bold;
 }
-
 select {
-
     width: 100%;
-
     padding: 16px;
-
     border: none;
-
     border-radius: 12px;
-
     font-size: 17px;
-
     margin-bottom: 20px;
 }
-
 button {
-
     width: 100%;
-
     padding: 17px;
-
     border: none;
-
     border-radius: 12px;
-
     background: white;
-
     color: #111;
-
     font-size: 18px;
-
     font-weight: bold;
-
     cursor: pointer;
 }
-
 .info {
-
     margin-top: 25px;
-
     padding: 18px;
-
     background: #1d1d1d;
-
     border-radius: 12px;
-
     color: #ccc;
-
     line-height: 1.8;
 }
-
 </style>
-
 </head>
-
 <body>
-
 <div class="container">
-
 <h1>💧 Lagos & Cachoeiras</h1>
-
 <div class="subtitulo">
-
-Uma única paisagem natural durante todo o vídeo,
-com movimento cinematográfico realista.
-
+Duas imagens reais do mesmo local,
+com zoom cinematográfico mais rápido.
 </div>
-
 <form method="POST" action="/criar">
-
 <label>Escolha o país:</label>
-
 <select name="pais" required>
-
 {% for pais in paises %}
-
 <option value="{{ pais }}">
 {{ pais }}
 </option>
-
 {% endfor %}
-
 </select>
-
 <button type="submit">
 🌎 Criar vídeo
 </button>
-
 </form>
-
 <div class="info">
-
 💧 Lagos cristalinos<br>
 🌊 Cachoeiras naturais<br>
-🏔️ Montanhas e natureza<br>
-🖼️ Uma única paisagem<br>
-🎥 Movimento cinematográfico<br>
-🔍 Zoom suave<br>
+🏔️ Paisagens exóticas<br>
+📍 Mesmo local<br>
+🖼️ 2 imagens<br>
+🔍 Zoom rápido e preciso<br>
 ⏱️ 60 segundos<br>
 📱 1080 × 1920<br>
 🔇 Sem música<br>
 🔇 Sem narração<br>
 🚫 Sem texto
-
 </div>
-
 </div>
-
 </body>
-
 </html>
 """
-
-
 # ============================================================
 # HOME
 # ============================================================
-
 @app.route(
     "/",
     methods=["GET"]
 )
 def inicio():
-
     return render_template_string(
         HTML,
         paises=PAISES
     )
-
-
 # ============================================================
-# CRIAR VÍDEO
+# CRIAR
 # ============================================================
-
 @app.route(
     "/criar",
     methods=["POST"]
 )
 def criar():
-
     pais = request.form.get(
         "pais"
     )
-
     if not pais:
-
         return "Escolha um país."
-
-    caminho_imagem = None
-    caminho_video = None
-
+    imagens = []
+    partes = []
     try:
-
         print(
             "===================================="
         )
-
         print(
             f"🌎 País escolhido: {pais}"
         )
-
         print(
-            "💧 Procurando UMA paisagem natural..."
+            "📍 Procurando DUAS imagens do mesmo local..."
         )
-
-        # ====================================================
-        # BUSCAR UMA ÚNICA IMAGEM
-        # ====================================================
-
-        url_imagem = buscar_imagem(
+        urls = buscar_duas_imagens(
             pais
         )
-
         # ====================================================
-        # BAIXAR
+        # BAIXAR AS DUAS IMAGENS
         # ====================================================
-
-        caminho_imagem = os.path.join(
-            IMAGES_DIR,
-            f"{uuid.uuid4().hex}.jpg"
+        for i, url in enumerate(
+            urls,
+            start=1
+        ):
+            caminho = os.path.join(
+                IMAGES_DIR,
+                f"{uuid.uuid4().hex}.jpg"
+            )
+            print(
+                f"📥 Baixando imagem {i}/2..."
+            )
+            baixar_imagem(
+                url,
+                caminho
+            )
+            print(
+                f"🖼️ Preparando imagem {i}/2..."
+            )
+            preparar_imagem(
+                caminho
+            )
+            imagens.append(
+                caminho
+            )
+        # ====================================================
+        # VÍDEO 1
+        # ====================================================
+        video1 = criar_clipe_zoom(
+            imagens[0],
+            1
         )
-
+        partes.append(
+            video1
+        )
+        # ====================================================
+        # VÍDEO 2
+        # ====================================================
+        video2 = criar_clipe_zoom(
+            imagens[1],
+            2
+        )
+        partes.append(
+            video2
+        )
+        # ====================================================
+        # JUNTAR
+        # ====================================================
         print(
-            "📥 Baixando imagem..."
+            "🎬 Juntando os dois vídeos..."
         )
-
-        baixar_imagem(
-            url_imagem,
-            caminho_imagem
+        caminho_final = juntar_videos(
+            video1,
+            video2
         )
-
         # ====================================================
-        # PREPARAR
+        # LIMPEZA
         # ====================================================
-
-        print(
-            "🖼️ Preparando imagem vertical..."
+        limpar_arquivos(
+            imagens
         )
-
-        preparar_imagem(
-            caminho_imagem
+        limpar_arquivos(
+            partes
         )
-
-        # ====================================================
-        # CRIAR VÍDEO
-        # ====================================================
-
-        caminho_video = criar_video(
-            caminho_imagem
-        )
-
-        # ====================================================
-        # APAGAR IMAGEM TEMPORÁRIA
-        # ====================================================
-
-        limpar_arquivo(
-            caminho_imagem
-        )
-
-        caminho_imagem = None
-
         print(
             "===================================="
         )
-
         print(
-            "✅ VÍDEO PRONTO!"
+            "✅ VÍDEO FINAL PRONTO!"
         )
-
         print(
-            "🎥 60 segundos"
+            "🎥 30s + 30s"
         )
-
         print(
-            "🖼️ Uma única paisagem"
+            "📍 Mesmo local"
         )
-
+        print(
+            "🔍 Zoom rápido"
+        )
         print(
             "🔇 Sem áudio"
         )
-
         print(
             "===================================="
         )
-
         return send_file(
-
-            caminho_video,
-
+            caminho_final,
             as_attachment=True,
-
             download_name=os.path.basename(
-                caminho_video
+                caminho_final
             ),
-
             mimetype="video/mp4"
         )
-
     except Exception as erro:
-
         print(
-            "❌ ERRO:"
+            f"❌ ERRO: {erro}"
         )
-
-        print(
-            erro
+        limpar_arquivos(
+            imagens + partes
         )
-
-        limpar_arquivo(
-            caminho_imagem
-        )
-
-        limpar_arquivo(
-            caminho_video
-        )
-
         return f"""
-
         <html>
-
         <body style="
             background:#111;
             color:white;
             font-family:Arial;
             padding:30px;
         ">
-
         <h2>❌ Erro ao criar vídeo</h2>
-
         <p>{erro}</p>
-
         <br>
-
         <a href="/"
         style="color:white;">
         ← Voltar
         </a>
-
         </body>
-
         </html>
-
         """, 500
-
-
 # ============================================================
 # EXECUÇÃO
 # ============================================================
-
 if __name__ == "__main__":
-
     porta = int(
         os.environ.get(
             "PORT",
             "8080"
         )
     )
-
     app.run(
         host="0.0.0.0",
         port=porta
