@@ -4,6 +4,7 @@ import uuid
 import requests
 import subprocess
 import html
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Flask, request, render_template_string, send_file
 import imageio_ffmpeg
@@ -31,6 +32,17 @@ os.makedirs(VIDEO_DIR, exist_ok=True)
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+
+
+# ============================================================
+# SESSION HTTP
+# ============================================================
+
+SESSION = requests.Session()
+
+SESSION.headers.update({
+    "User-Agent": "CliffNatureReel/1.0"
+})
 
 
 # ============================================================
@@ -85,13 +97,12 @@ PAISES = {
     "Suécia": "Sweden",
     "Polônia": "Poland",
 
-    # NOVO
     "🇫🇴 Ilhas Faroé": "Faroe Islands"
 }
 
 
 # ============================================================
-# CONSULTAS ESPECÍFICAS
+# CONSULTAS ESPECIAIS
 # ============================================================
 
 CONSULTAS_ESPECIAIS = {
@@ -135,7 +146,8 @@ HTML = """
 
 <meta charset="UTF-8">
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
 
 <title>Cliff & Nature Reel</title>
 
@@ -260,7 +272,7 @@ Paisagens naturais, penhascos e vistas impressionantes
 👁️ Sensação de POV / viewpoint<br>
 🎥 Vários clipes no mesmo vídeo<br>
 📱 1080 x 1920 vertical<br>
-🔎 Zoom progressivo e aproximado<br>
+🔎 Zoom suave, rápido e profissional<br>
 ⏱️ Até 60 segundos<br>
 🔇 Sem áudio<br>
 🚫 Sem texto
@@ -302,7 +314,7 @@ def buscar_videos(query):
         "per_page": 80
     }
 
-    response = requests.get(
+    response = SESSION.get(
         url,
         headers=headers,
         params=params,
@@ -312,7 +324,8 @@ def buscar_videos(query):
     if response.status_code != 200:
 
         raise Exception(
-            f"Erro Pexels {response.status_code}: {response.text}"
+            f"Erro Pexels {response.status_code}: "
+            f"{response.text}"
         )
 
     data = response.json()
@@ -326,7 +339,10 @@ def buscar_videos(query):
 
 def escolher_arquivo(video):
 
-    arquivos = video.get("video_files", [])
+    arquivos = video.get(
+        "video_files",
+        []
+    )
 
     candidatos = []
 
@@ -355,21 +371,29 @@ def escolher_arquivo(video):
 
         proporcao = altura / largura
 
+        # Vertical ou próximo de vertical
         if proporcao < 1.35:
             continue
 
-        candidatos.append(arquivo)
+        candidatos.append(
+            arquivo
+        )
 
     if not candidatos:
         return None
 
+    # Prioriza resolução alta
     candidatos.sort(
         key=lambda x:
-            x.get("width", 0) *
-            x.get("height", 0),
+            (
+                x.get("width", 0)
+                *
+                x.get("height", 0)
+            ),
         reverse=True
     )
 
+    # Evita arquivos absurdamente grandes
     for arquivo in candidatos:
 
         largura = int(
@@ -380,7 +404,11 @@ def escolher_arquivo(video):
             arquivo.get("height") or 0
         )
 
-        if largura <= 2160 and altura <= 3840:
+        if (
+            largura <= 2160
+            and
+            altura <= 3840
+        ):
             return arquivo
 
     return candidatos[0]
@@ -452,7 +480,6 @@ PALAVRAS_BOAS = [
 
     "beautiful nature",
 
-    # Faroé
     "faroe",
     "faroe islands",
     "fjord",
@@ -526,7 +553,10 @@ def pontuar_video(video):
     texto = ""
 
     texto += str(
-        video.get("url", "")
+        video.get(
+            "url",
+            ""
+        )
     ).lower()
 
     texto += " "
@@ -563,7 +593,11 @@ def pontuar_video(video):
             score -= 20
 
     duracao = float(
-        video.get("duration") or 0
+        video.get(
+            "duration",
+            0
+        )
+        or 0
     )
 
     if duracao >= 10:
@@ -587,7 +621,7 @@ def pontuar_video(video):
 
 def selecionar_melhores_videos(
     videos,
-    quantidade=8
+    quantidade=12
 ):
 
     candidatos = []
@@ -596,7 +630,9 @@ def selecionar_melhores_videos(
 
     for video in videos:
 
-        video_id = video.get("id")
+        video_id = video.get(
+            "id"
+        )
 
         if not video_id:
             continue
@@ -604,10 +640,16 @@ def selecionar_melhores_videos(
         if video_id in vistos:
             continue
 
-        vistos.add(video_id)
+        vistos.add(
+            video_id
+        )
 
         duracao = float(
-            video.get("duration") or 0
+            video.get(
+                "duration",
+                0
+            )
+            or 0
         )
 
         if duracao < 5:
@@ -645,7 +687,7 @@ def selecionar_melhores_videos(
         reverse=True
     )
 
-    melhores = candidatos[:25]
+    melhores = candidatos[:30]
 
     random.shuffle(
         melhores
@@ -655,7 +697,7 @@ def selecionar_melhores_videos(
 
 
 # ============================================================
-# DOWNLOAD
+# DOWNLOAD DE UM VÍDEO
 # ============================================================
 
 def baixar_video(
@@ -664,53 +706,176 @@ def baixar_video(
 ):
 
     print(
-        "⬇️ Baixando vídeo..."
+        f"⬇️ Baixando: "
+        f"{os.path.basename(destino)}"
     )
 
-    response = requests.get(
-        url,
-        stream=True,
-        timeout=180
-    )
+    try:
 
-    if response.status_code != 200:
-
-        raise Exception(
-            f"Erro ao baixar vídeo: "
-            f"HTTP {response.status_code}"
+        response = SESSION.get(
+            url,
+            stream=True,
+            timeout=(20, 180)
         )
 
-    tamanho = 0
+        if response.status_code != 200:
 
-    with open(
-        destino,
-        "wb"
-    ) as arquivo:
+            raise Exception(
+                f"HTTP {response.status_code}"
+            )
 
-        for bloco in response.iter_content(
-            chunk_size=1024 * 1024
+        tamanho = 0
+
+        with open(
+            destino,
+            "wb"
+        ) as arquivo:
+
+            for bloco in response.iter_content(
+                chunk_size=1024 * 1024
+            ):
+
+                if bloco:
+
+                    arquivo.write(
+                        bloco
+                    )
+
+                    tamanho += len(
+                        bloco
+                    )
+
+        if tamanho < 100000:
+
+            raise Exception(
+                "Arquivo baixado ficou muito pequeno."
+            )
+
+        print(
+            f"✅ Download: "
+            f"{tamanho / 1024 / 1024:.1f} MB"
+        )
+
+        return destino
+
+    except Exception:
+
+        if os.path.exists(
+            destino
         ):
 
-            if bloco:
+            try:
+                os.remove(
+                    destino
+                )
+            except Exception:
+                pass
 
-                arquivo.write(
-                    bloco
+        raise
+
+
+# ============================================================
+# DOWNLOAD PARALELO
+# ============================================================
+
+def baixar_videos_paralelo(
+    videos_selecionados
+):
+
+    arquivos_baixados = []
+
+    tarefas = {}
+
+    # 3 downloads simultâneos:
+    # bom equilíbrio para Railway
+    with ThreadPoolExecutor(
+        max_workers=3
+    ) as executor:
+
+        for indice, item in enumerate(
+            videos_selecionados
+        ):
+
+            video = item["video"]
+
+            arquivo = item["arquivo"]
+
+            video_id = video.get(
+                "id",
+                uuid.uuid4().hex
+            )
+
+            destino = os.path.join(
+
+                TEMP_DIR,
+
+                f"download_"
+                f"{video_id}_"
+                f"{uuid.uuid4().hex[:8]}"
+                f".mp4"
+
+            )
+
+            tarefa = executor.submit(
+
+                baixar_video,
+
+                arquivo["link"],
+
+                destino
+
+            )
+
+            tarefas[tarefa] = (
+                indice,
+                destino,
+                item
+            )
+
+        resultados = {}
+
+        for tarefa in as_completed(
+            tarefas
+        ):
+
+            indice, destino, item = (
+                tarefas[tarefa]
+            )
+
+            try:
+
+                caminho = tarefa.result()
+
+                resultados[indice] = (
+                    caminho,
+                    item
                 )
 
-                tamanho += len(
-                    bloco
+            except Exception as erro:
+
+                print(
+                    f"⚠️ Falha no download "
+                    f"{indice + 1}: {erro}"
                 )
 
-    print(
-        f"✅ Download concluído: "
-        f"{tamanho / 1024 / 1024:.1f} MB"
-    )
+    # Mantém a ordem original
+    for indice in sorted(
+        resultados.keys()
+    ):
 
-    if tamanho < 100000:
+        caminho, item = resultados[
+            indice
+        ]
 
-        raise Exception(
-            "O vídeo baixado ficou muito pequeno."
-        )
+        arquivos_baixados.append({
+
+            "path": caminho,
+
+            "item": item
+
+        })
+
+    return arquivos_baixados
 
 
 # ============================================================
@@ -722,41 +887,76 @@ def processar_clipe(
     output_path,
     duracao,
     zoom_inicio=1.0,
-    zoom_final=1.45
+    zoom_final=1.52
 ):
 
     frames = max(
         1,
         int(
-            float(duracao) *
+            float(duracao)
+            *
             FPS
         )
     )
 
+    # --------------------------------------------------------
+    # Zoom suave com aceleração/desaceleração.
+    #
+    # A curva:
+    #
+    # 3*t² - 2*t³
+    #
+    # deixa o começo e o final suaves.
+    #
+    # Isso reduz o aspecto de movimento robótico.
+    # --------------------------------------------------------
+
     filtro = (
 
-        f"scale={WIDTH}:{HEIGHT}:"
+        f"scale="
+        f"{WIDTH}:"
+        f"{HEIGHT}:"
         f"force_original_aspect_ratio=increase,"
 
-        f"crop={WIDTH}:{HEIGHT},"
+        f"crop="
+        f"{WIDTH}:"
+        f"{HEIGHT}:"
 
         f"zoompan="
 
-        f"z='min("
+        f"z='"
         f"{zoom_inicio}+"
-        f"({zoom_final}-{zoom_inicio})*on/"
-        f"{frames},"
-        f"{zoom_final})':"
+        f"({zoom_final}-{zoom_inicio})*"
+        f"(3*pow(on/{frames},2)-"
+        f"2*pow(on/{frames},3))"
+        f"'"
 
-        f"x='iw/2-(iw/zoom/2)':"
+        f":"
 
-        f"y='ih/2-(ih/zoom/2)':"
+        f"x='"
+        f"(iw-iw/zoom)/2"
+        f"'"
 
-        f"d=1:"
+        f":"
 
-        f"s={WIDTH}x{HEIGHT}:"
+        f"y='"
+        f"(ih-ih/zoom)/2"
+        f"'"
 
-        f"fps={FPS}"
+        f":"
+
+        f"d=1"
+
+        f":"
+
+        f"s="
+        f"{WIDTH}x{HEIGHT}"
+
+        f":"
+
+        f"fps="
+        f"{FPS}"
+
     )
 
     comando = [
@@ -794,7 +994,10 @@ def processar_clipe(
         "yuv420p",
 
         "-threads",
-        "2",
+        "3",
+
+        "-movflags",
+        "+faststart",
 
         output_path
 
@@ -823,8 +1026,11 @@ def processar_clipe(
         )
 
         raise Exception(
+
             "Erro processando clipe:\n\n"
-            + erro[-6000:]
+            +
+            erro[-6000:]
+
         )
 
 
@@ -843,6 +1049,7 @@ def juntar_clipes(
 
         f"{uuid.uuid4().hex}"
         f"_lista.txt"
+
     )
 
     try:
@@ -874,6 +1081,7 @@ def juntar_clipes(
                     )
                     +
                     "'\n"
+
                 )
 
         comando = [
@@ -931,8 +1139,11 @@ def juntar_clipes(
             )
 
             raise Exception(
+
                 "Erro juntando os clipes:\n\n"
-                + erro[-6000:]
+                +
+                erro[-6000:]
+
             )
 
     finally:
@@ -974,32 +1185,64 @@ def criar_reel(
 
     clipes_processados = []
 
+    downloads = []
+
     tempo_restante = DURATION
 
     try:
 
-        for indice, item in enumerate(
+        # ----------------------------------------------------
+        # PRIMEIRO BAIXA OS VÍDEOS EM PARALELO
+        # ----------------------------------------------------
+
+        print(
+            "⚡ Iniciando downloads paralelos..."
+        )
+
+        downloads = baixar_videos_paralelo(
             videos_selecionados
+        )
+
+        if not downloads:
+
+            raise Exception(
+                "Nenhum vídeo conseguiu ser baixado."
+            )
+
+        print(
+            f"✅ Downloads concluídos: "
+            f"{len(downloads)}"
+        )
+
+        # ----------------------------------------------------
+        # PROCESSAMENTO
+        # ----------------------------------------------------
+
+        for indice, download in enumerate(
+            downloads
         ):
 
             if tempo_restante <= 0:
                 break
 
-            video = item["video"]
+            item = download["item"]
 
-            arquivo = item["arquivo"]
+            original_path = download["path"]
 
             duracao_original = float(
                 item["duracao"]
             )
+
+            # Clipe entre 7 e 11 segundos
+            # para deixar o Reel mais dinâmico.
 
             duracao_clipe = min(
 
                 tempo_restante,
 
                 random.uniform(
-                    7,
-                    12
+                    7.0,
+                    11.0
                 ),
 
                 duracao_original
@@ -1009,52 +1252,36 @@ def criar_reel(
             if duracao_clipe < 4:
                 continue
 
-            video_id = video.get(
-                "id",
-                uuid.uuid4().hex
-            )
-
-            original_path = os.path.join(
-
-                TEMP_DIR,
-
-                f"{video_id}_"
-                f"{uuid.uuid4().hex[:8]}"
-                f".mp4"
-            )
-
             processado_path = os.path.join(
 
                 TEMP_DIR,
 
                 f"processed_"
                 f"{uuid.uuid4().hex}.mp4"
+
             )
 
             try:
 
                 print(
-
-                    f"🎥 Clipe "
-                    f"{indice + 1}"
-                    f" | "
+                    f"🎥 Processando clipe "
+                    f"{indice + 1} "
+                    f"| "
                     f"{duracao_clipe:.1f}s"
                 )
 
-                baixar_video(
-
-                    arquivo["link"],
-
-                    original_path
-
-                )
+                # ------------------------------------------------
+                # Zoom levemente mais rápido.
+                #
+                # Maioria dos clipes:
+                # 1.00 → 1.48 / 1.52
+                #
+                # Alguns podem chegar a 1.55.
+                # ------------------------------------------------
 
                 zoom_final = random.uniform(
-
-                    1.35,
-
-                    1.60
-
+                    1.46,
+                    1.55
                 )
 
                 processar_clipe(
@@ -1080,6 +1307,9 @@ def criar_reel(
                 )
 
             finally:
+
+                # Apaga vídeo original
+                # imediatamente depois do processamento.
 
                 if os.path.exists(
                     original_path
@@ -1141,6 +1371,29 @@ def criar_reel(
 
     finally:
 
+        # ----------------------------------------------------
+        # LIMPEZA
+        # ----------------------------------------------------
+
+        for download in downloads:
+
+            caminho = download.get(
+                "path"
+            )
+
+            if caminho and os.path.exists(
+                caminho
+            ):
+
+                try:
+
+                    os.remove(
+                        caminho
+                    )
+
+                except Exception:
+                    pass
+
         for clipe in clipes_processados:
 
             if os.path.exists(
@@ -1180,8 +1433,8 @@ def gerar_video(pais):
 
         print("")
         print(
-            "🇫🇴 MODO ESPECIAL:"
-            " ILHAS FAROÉ"
+            "🇫🇴 MODO ESPECIAL: "
+            "ILHAS FAROÉ"
         )
 
     else:
@@ -1276,6 +1529,7 @@ def gerar_video(pais):
 
             "Nenhum vídeo encontrado "
             "no Pexels para esse destino."
+
         )
 
     print(
@@ -1297,6 +1551,7 @@ def gerar_video(pais):
 
             "Não encontrei vídeos verticais "
             "adequados para paisagens naturais."
+
         )
 
     print(
@@ -1307,24 +1562,40 @@ def gerar_video(pais):
     identificador = uuid.uuid4().hex
 
     nome_limpo = (
+
         pais
-        .replace("🇫🇴", "")
+
+        .replace(
+            "🇫🇴",
+            ""
+        )
+
         .strip()
+
         .lower()
-        .replace(" ", "_")
+
+        .replace(
+            " ",
+            "_"
+        )
+
     )
 
     output_name = (
 
         "cliff_reel_"
 
-        + nome_limpo
+        +
+        nome_limpo
 
-        + "_"
+        +
+        "_"
 
-        + identificador[:8]
+        +
+        identificador[:8]
 
-        + ".mp4"
+        +
+        ".mp4"
 
     )
 
@@ -1493,7 +1764,8 @@ def health():
 
         "app": "Cliff & Nature Reel",
 
-        "type": "multi clip nature video",
+        "type":
+            "multi clip nature video",
 
         "theme":
             "cliffs, waterfalls, mountains, "
@@ -1504,6 +1776,12 @@ def health():
 
         "resolution":
             f"{WIDTH}x{HEIGHT}",
+
+        "fps":
+            FPS,
+
+        "zoom":
+            "smooth 1.00x → approximately 1.46x-1.55x",
 
         "audio":
             False,
