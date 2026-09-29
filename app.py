@@ -272,7 +272,7 @@ Paisagens naturais, penhascos e vistas impressionantes
 👁️ Sensação de POV / viewpoint<br>
 🎥 Vários clipes no mesmo vídeo<br>
 📱 1080 x 1920 vertical<br>
-🔎 Zoom suave, rápido e profissional<br>
+🔎 Zoom suave e profissional<br>
 ⏱️ Até 60 segundos<br>
 🔇 Sem áudio<br>
 🚫 Sem texto
@@ -296,7 +296,6 @@ Paisagens naturais, penhascos e vistas impressionantes
 def buscar_videos(query):
 
     if not PEXELS_API_KEY:
-
         raise Exception(
             "A variável PEXELS_API_KEY não está configurada no Railway."
         )
@@ -322,7 +321,6 @@ def buscar_videos(query):
     )
 
     if response.status_code != 200:
-
         raise Exception(
             f"Erro Pexels {response.status_code}: "
             f"{response.text}"
@@ -371,18 +369,14 @@ def escolher_arquivo(video):
 
         proporcao = altura / largura
 
-        # Vertical ou próximo de vertical
         if proporcao < 1.35:
             continue
 
-        candidatos.append(
-            arquivo
-        )
+        candidatos.append(arquivo)
 
     if not candidatos:
         return None
 
-    # Prioriza resolução alta
     candidatos.sort(
         key=lambda x:
             (
@@ -393,7 +387,6 @@ def escolher_arquivo(video):
         reverse=True
     )
 
-    # Evita arquivos absurdamente grandes
     for arquivo in candidatos:
 
         largura = int(
@@ -697,7 +690,7 @@ def selecionar_melhores_videos(
 
 
 # ============================================================
-# DOWNLOAD DE UM VÍDEO
+# DOWNLOAD
 # ============================================================
 
 def baixar_video(
@@ -719,7 +712,6 @@ def baixar_video(
         )
 
         if response.status_code != 200:
-
             raise Exception(
                 f"HTTP {response.status_code}"
             )
@@ -746,7 +738,6 @@ def baixar_video(
                     )
 
         if tamanho < 100000:
-
             raise Exception(
                 "Arquivo baixado ficou muito pequeno."
             )
@@ -786,8 +777,6 @@ def baixar_videos_paralelo(
 
     tarefas = {}
 
-    # 3 downloads simultâneos:
-    # bom equilíbrio para Railway
     with ThreadPoolExecutor(
         max_workers=3
     ) as executor:
@@ -858,7 +847,6 @@ def baixar_videos_paralelo(
                     f"{indice + 1}: {erro}"
                 )
 
-    # Mantém a ordem original
     for indice in sorted(
         resultados.keys()
     ):
@@ -887,75 +875,203 @@ def processar_clipe(
     output_path,
     duracao,
     zoom_inicio=1.0,
-    zoom_final=1.52
+    zoom_final=1.50
 ):
+
+    duracao = float(duracao)
+
+    # --------------------------------------------------------
+    # IMPORTANTE:
+    #
+    # Não usamos mais:
+    #
+    # scale -> crop -> zoompan
+    #
+    # O zoompan precisa ser um filtro separado.
+    #
+    # Primeiro normalizamos o vídeo para preencher
+    # o formato vertical.
+    #
+    # Depois usamos crop + zoom através de uma expressão
+    # de escala.
+    #
+    # Isso evita o erro:
+    #
+    # "Error applying option 'zoompan' to filter 'crop'"
+    # --------------------------------------------------------
 
     frames = max(
         1,
-        int(
-            float(duracao)
-            *
-            FPS
-        )
+        int(round(duracao * FPS))
     )
 
     # --------------------------------------------------------
-    # Zoom suave com aceleração/desaceleração.
+    # Criamos um vídeo grande o suficiente para permitir
+    # movimento de zoom.
+    # --------------------------------------------------------
+
+    base_width = int(WIDTH * zoom_final)
+    base_height = int(HEIGHT * zoom_final)
+
+    filtro = (
+
+        # Preenche o quadro vertical mantendo proporção.
+        f"scale={base_width}:{base_height}:"
+        f"force_original_aspect_ratio=increase,"
+
+        # Recorta exatamente o tamanho desejado.
+        f"crop={WIDTH}:{HEIGHT}:"
+        f"(iw-{WIDTH})/2:"
+        f"(ih-{HEIGHT})/2,"
+
+        # Suaviza a taxa de quadros.
+        f"fps={FPS},"
+
+        # Garante tamanho final.
+        f"setsar=1"
+
+    )
+
+    comando = [
+
+        FFMPEG,
+
+        "-y",
+
+        "-hide_banner",
+
+        "-loglevel",
+        "error",
+
+        "-i",
+        input_path,
+
+        "-vf",
+        filtro,
+
+        "-t",
+        str(duracao),
+
+        "-an",
+
+        "-c:v",
+        "libx264",
+
+        "-preset",
+        "veryfast",
+
+        "-crf",
+        "23",
+
+        "-pix_fmt",
+        "yuv420p",
+
+        "-r",
+        str(FPS),
+
+        "-threads",
+        "3",
+
+        "-movflags",
+        "+faststart",
+
+        output_path
+
+    ]
+
+    processo = subprocess.run(
+
+        comando,
+
+        stdout=subprocess.PIPE,
+
+        stderr=subprocess.PIPE,
+
+        text=True,
+
+        timeout=300
+
+    )
+
+    if processo.returncode != 0:
+
+        erro = (
+            processo.stderr.strip()
+            or
+            "Erro desconhecido."
+        )
+
+        raise Exception(
+
+            "Erro processando clipe:\n\n"
+            +
+            erro[-6000:]
+
+        )
+
+
+# ============================================================
+# PROCESSAR CLIPE COM ZOOM REAL
+# ============================================================
+
+def processar_clipe_zoom(
+    input_path,
+    output_path,
+    duracao,
+    zoom_inicio=1.0,
+    zoom_final=1.50
+):
+
+    duracao = float(duracao)
+
+    frames = max(
+        1,
+        int(round(duracao * FPS))
+    )
+
+    # --------------------------------------------------------
+    # zoompan é usado corretamente como filtro independente.
     #
-    # A curva:
+    # Antes o código tinha:
     #
-    # 3*t² - 2*t³
+    # crop=1080:1920:zoompan=...
     #
-    # deixa o começo e o final suaves.
+    # Isso é inválido.
     #
-    # Isso reduz o aspecto de movimento robótico.
+    # Agora:
+    #
+    # scale -> crop -> zoompan
+    #
+    # cada filtro possui sua própria sintaxe.
     # --------------------------------------------------------
 
     filtro = (
 
         f"scale="
-        f"{WIDTH}:"
-        f"{HEIGHT}:"
+        f"{WIDTH * 2}:"
+        f"{HEIGHT * 2}:"
         f"force_original_aspect_ratio=increase,"
 
         f"crop="
-        f"{WIDTH}:"
-        f"{HEIGHT}:"
+        f"{WIDTH * 2}:"
+        f"{HEIGHT * 2}:"
+        f"(iw-{WIDTH * 2})/2:"
+        f"(ih-{HEIGHT * 2})/2,"
 
         f"zoompan="
-
         f"z='"
         f"{zoom_inicio}+"
         f"({zoom_final}-{zoom_inicio})*"
         f"(3*pow(on/{frames},2)-"
         f"2*pow(on/{frames},3))"
-        f"'"
+        f"':"
+        f"x='(iw-iw/zoom)/2':"
+        f"y='(ih-ih/zoom)/2':"
+        f"d=1:"
+        f"s={WIDTH}x{HEIGHT}:"
+        f"fps={FPS},"
 
-        f":"
-
-        f"x='"
-        f"(iw-iw/zoom)/2"
-        f"'"
-
-        f":"
-
-        f"y='"
-        f"(ih-ih/zoom)/2"
-        f"'"
-
-        f":"
-
-        f"d=1"
-
-        f":"
-
-        f"s="
-        f"{WIDTH}x{HEIGHT}"
-
-        f":"
-
-        f"fps="
-        f"{FPS}"
+        f"setsar=1"
 
     )
 
@@ -1191,10 +1307,6 @@ def criar_reel(
 
     try:
 
-        # ----------------------------------------------------
-        # PRIMEIRO BAIXA OS VÍDEOS EM PARALELO
-        # ----------------------------------------------------
-
         print(
             "⚡ Iniciando downloads paralelos..."
         )
@@ -1233,9 +1345,6 @@ def criar_reel(
                 item["duracao"]
             )
 
-            # Clipe entre 7 e 11 segundos
-            # para deixar o Reel mais dinâmico.
-
             duracao_clipe = min(
 
                 tempo_restante,
@@ -1270,21 +1379,13 @@ def criar_reel(
                     f"{duracao_clipe:.1f}s"
                 )
 
-                # ------------------------------------------------
-                # Zoom levemente mais rápido.
-                #
-                # Maioria dos clipes:
-                # 1.00 → 1.48 / 1.52
-                #
-                # Alguns podem chegar a 1.55.
-                # ------------------------------------------------
-
                 zoom_final = random.uniform(
                     1.46,
                     1.55
                 )
 
-                processar_clipe(
+                # Usa a versão corrigida do zoom.
+                processar_clipe_zoom(
 
                     original_path,
 
@@ -1307,9 +1408,6 @@ def criar_reel(
                 )
 
             finally:
-
-                # Apaga vídeo original
-                # imediatamente depois do processamento.
 
                 if os.path.exists(
                     original_path
@@ -1371,10 +1469,6 @@ def criar_reel(
 
     finally:
 
-        # ----------------------------------------------------
-        # LIMPEZA
-        # ----------------------------------------------------
-
         for download in downloads:
 
             caminho = download.get(
@@ -1420,10 +1514,6 @@ def gerar_video(pais):
         pais,
         pais
     )
-
-    # ========================================================
-    # ILHAS FAROÉ
-    # ========================================================
 
     if pais == "🇫🇴 Ilhas Faroé":
 
@@ -1486,10 +1576,6 @@ def gerar_video(pais):
     print(
         "======================================"
     )
-
-    # ========================================================
-    # PESQUISAR
-    # ========================================================
 
     for consulta in consultas[:10]:
 
@@ -1681,7 +1767,6 @@ def index():
             <p>
             O vídeo demorou muito
             para ser processado.
-            Tente novamente.
             </p>
 
             <br>
@@ -1810,5 +1895,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
 
         port=port
-
     )
