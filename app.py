@@ -24,6 +24,9 @@ FPS = 24
 
 DURATION = 60
 
+# Marca d'água
+WATERMARK = "mundo.afora0"
+
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
 VIDEO_DIR = "videos"
@@ -42,472 +45,506 @@ FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 # ============================================================
 
 PAISES = {
+
     "🇧🇷 Brasil": [
-        "Brazil landscape",
-        "Brazil mountains",
-        "Brazil waterfalls",
-        "Brazil cliffs",
-        "Brazil nature",
-        "Brazil scenic",
-        "Brazil canyon",
-        "Brazil lake",
-        "Brazil viewpoint"
+        "Brazil ocean cliffs",
+        "Brazil dramatic sea cliffs",
+        "Brazil beautiful lake mountains",
+        "Brazil green valley cabin",
+        "Brazil mountain lake",
+        "Brazil green valley chalet",
+        "Brazil rocky coastline",
+        "Brazil mountain valley landscape"
     ],
 
     "🇺🇸 Estados Unidos": [
-        "USA landscape",
-        "USA mountains",
-        "USA waterfalls",
-        "USA cliffs",
-        "USA canyon",
-        "USA nature",
-        "USA scenic",
-        "USA viewpoint"
+        "USA ocean cliffs",
+        "USA dramatic cliffs",
+        "USA mountain lake",
+        "USA green valley cabin",
+        "USA alpine lake",
+        "USA mountain cabin",
+        "USA rocky coastline",
+        "USA green valley"
     ],
 
     "🇨🇦 Canadá": [
-        "Canada landscape",
-        "Canada mountains",
-        "Canada waterfalls",
-        "Canada cliffs",
-        "Canada lake",
-        "Canada nature",
-        "Canada scenic",
-        "Canada viewpoint"
+        "Canada mountain lake",
+        "Canada turquoise lake mountains",
+        "Canada green valley cabin",
+        "Canada mountain cabin lake",
+        "Canada rocky mountains lake",
+        "Canada ocean cliffs",
+        "Canada dramatic cliffs",
+        "Canada green valley"
     ],
 
     "🇲🇽 México": [
-        "Mexico landscape",
-        "Mexico mountains",
-        "Mexico waterfalls",
-        "Mexico canyon",
-        "Mexico cliffs",
-        "Mexico nature",
-        "Mexico scenic"
+        "Mexico ocean cliffs",
+        "Mexico dramatic sea cliffs",
+        "Mexico mountain lake",
+        "Mexico green valley",
+        "Mexico rocky coastline",
+        "Mexico beautiful valley"
     ],
 
     "🇦🇷 Argentina": [
-        "Argentina landscape",
-        "Argentina mountains",
-        "Patagonia landscape",
-        "Argentina waterfalls",
-        "Argentina cliffs",
-        "Argentina nature",
-        "Argentina scenic"
+        "Argentina Patagonia lake mountains",
+        "Argentina green valley cabin",
+        "Argentina mountain lake",
+        "Argentina dramatic cliffs",
+        "Patagonia lake valley",
+        "Patagonia mountain cabin",
+        "Argentina rocky landscape"
     ],
 
     "🇨🇱 Chile": [
-        "Chile landscape",
-        "Chile mountains",
-        "Patagonia Chile",
-        "Chile waterfalls",
-        "Chile cliffs",
-        "Chile nature",
-        "Chile scenic"
+        "Chile Patagonia lake mountains",
+        "Chile mountain lake",
+        "Chile green valley cabin",
+        "Chile dramatic cliffs",
+        "Chile fjord cliffs",
+        "Chile mountain valley",
+        "Chile turquoise lake mountains"
     ],
 
     "🇵🇪 Peru": [
-        "Peru landscape",
-        "Peru mountains",
-        "Peru canyon",
-        "Peru waterfalls",
-        "Peru cliffs",
-        "Peru nature",
-        "Peru scenic"
+        "Peru mountain lake",
+        "Peru green valley mountains",
+        "Peru dramatic cliffs",
+        "Peru mountain valley",
+        "Peru beautiful lake mountains",
+        "Peru green valley landscape"
     ],
 
     "🇨🇴 Colômbia": [
-        "Colombia landscape",
-        "Colombia mountains",
-        "Colombia waterfalls",
-        "Colombia cliffs",
-        "Colombia nature",
-        "Colombia scenic"
+        "Colombia mountain lake",
+        "Colombia green valley",
+        "Colombia mountain cabin",
+        "Colombia dramatic cliffs",
+        "Colombia beautiful valley",
+        "Colombia lake mountains"
     ],
 
     "🇨🇷 Costa Rica": [
-        "Costa Rica landscape",
-        "Costa Rica waterfalls",
-        "Costa Rica mountains",
-        "Costa Rica jungle",
-        "Costa Rica nature",
-        "Costa Rica scenic"
+        "Costa Rica ocean cliffs",
+        "Costa Rica green valley",
+        "Costa Rica mountain lake",
+        "Costa Rica dramatic coastline",
+        "Costa Rica green mountains",
+        "Costa Rica valley landscape"
     ],
 
     "🇮🇸 Islândia": [
-        "Iceland landscape",
-        "Iceland mountains",
-        "Iceland waterfalls",
-        "Iceland cliffs",
-        "Iceland canyon",
-        "Iceland nature",
-        "Iceland scenic",
-        "Iceland viewpoint"
+        "Iceland ocean cliffs",
+        "Iceland dramatic sea cliffs",
+        "Iceland mountain lake",
+        "Iceland green valley",
+        "Iceland waterfall mountains",
+        "Iceland fjord mountains",
+        "Iceland dramatic coastline",
+        "Iceland green valley cabin"
     ],
 
     "🇳🇴 Noruega": [
-        "Norway landscape",
-        "Norway mountains",
-        "Norway waterfalls",
-        "Norway cliffs",
-        "Norway fjord",
-        "Norway nature",
-        "Norway scenic"
+        "Norway fjord cliffs",
+        "Norway dramatic sea cliffs",
+        "Norway mountain lake",
+        "Norway green valley cabin",
+        "Norway fjord cabin",
+        "Norway mountain valley",
+        "Norway turquoise lake",
+        "Norway dramatic mountains"
     ],
 
     "🇨🇭 Suíça": [
-        "Switzerland landscape",
-        "Swiss Alps",
-        "Switzerland mountains",
-        "Switzerland waterfall",
-        "Switzerland lake mountains",
-        "Swiss Alps viewpoint",
-        "Switzerland nature",
-        "Swiss scenic"
+        "Swiss Alps lake cabin",
+        "Switzerland mountain lake",
+        "Swiss green valley chalet",
+        "Switzerland valley cabin",
+        "Swiss Alps dramatic cliffs",
+        "Swiss mountain lake chalet",
+        "Switzerland green valley",
+        "Swiss Alps lake mountains"
     ],
 
     "🇫🇷 França": [
-        "France landscape",
-        "French Alps",
-        "France mountains",
-        "France waterfalls",
-        "France cliffs",
-        "France nature",
-        "France scenic"
+        "French Alps lake cabin",
+        "France mountain lake",
+        "French Alps green valley",
+        "France mountain chalet",
+        "French Alps dramatic cliffs",
+        "France green valley cabin"
     ],
 
     "🇮🇹 Itália": [
-        "Italy landscape",
-        "Italian Alps",
-        "Italy mountains",
-        "Italy waterfalls",
-        "Italy cliffs",
-        "Italy lake mountains",
-        "Italy nature"
+        "Italian Alps lake cabin",
+        "Italy mountain lake",
+        "Dolomites lake cabin",
+        "Dolomites green valley",
+        "Italian mountain chalet",
+        "Dolomites dramatic cliffs",
+        "Italy green mountain valley"
     ],
 
     "🇵🇹 Portugal": [
-        "Portugal landscape",
-        "Portugal mountains",
-        "Portugal waterfalls",
-        "Portugal cliffs",
-        "Portugal nature",
-        "Portugal scenic"
+        "Portugal ocean cliffs",
+        "Portugal dramatic coastline",
+        "Portugal mountain lake",
+        "Portugal green valley",
+        "Portugal rocky cliffs",
+        "Portugal beautiful valley"
     ],
 
     "🇪🇸 Espanha": [
-        "Spain landscape",
-        "Spain mountains",
-        "Spain waterfalls",
-        "Spain cliffs",
-        "Spain canyon",
-        "Spain nature"
+        "Spain ocean cliffs",
+        "Spain dramatic sea cliffs",
+        "Spain mountain lake",
+        "Spain green valley",
+        "Spain rocky coastline",
+        "Spain mountain cabin"
     ],
 
     "🏴 Escócia": [
-        "Scotland landscape",
-        "Scotland mountains",
-        "Scotland waterfalls",
-        "Scotland cliffs",
-        "Scottish Highlands",
-        "Scotland nature",
-        "Scotland scenic"
+        "Scotland dramatic sea cliffs",
+        "Scottish Highlands green valley",
+        "Scotland mountain lake",
+        "Scotland valley cabin",
+        "Scotland rocky coastline",
+        "Scottish Highlands lake",
+        "Scotland dramatic mountains"
     ],
 
     "🇮🇪 Irlanda": [
-        "Ireland landscape",
-        "Ireland cliffs",
-        "Ireland waterfalls",
-        "Ireland mountains",
-        "Ireland nature",
-        "Ireland scenic"
+        "Ireland dramatic sea cliffs",
+        "Ireland green valley",
+        "Ireland mountain lake",
+        "Ireland rocky coastline",
+        "Ireland green mountains",
+        "Ireland valley cabin"
     ],
 
     "🇬🇧 Inglaterra": [
-        "England landscape",
-        "England mountains",
-        "England waterfalls",
-        "England cliffs",
-        "England nature"
+        "England dramatic cliffs",
+        "England green valley",
+        "England mountain lake",
+        "England rocky coastline",
+        "England green mountains"
     ],
 
     "🇩🇪 Alemanha": [
-        "Germany landscape",
-        "Germany mountains",
-        "Germany waterfalls",
-        "Germany cliffs",
-        "Germany nature",
-        "Germany scenic"
+        "Germany mountain lake",
+        "Germany green valley cabin",
+        "German Alps lake",
+        "Germany mountain chalet",
+        "Germany dramatic cliffs",
+        "Germany green valley"
     ],
 
     "🇦🇹 Áustria": [
-        "Austria landscape",
-        "Austrian Alps",
-        "Austria mountains",
-        "Austria waterfalls",
-        "Austria lake mountains",
-        "Austria nature"
+        "Austria Alps lake cabin",
+        "Austrian Alps mountain lake",
+        "Austria green valley chalet",
+        "Austria mountain cabin",
+        "Austria dramatic cliffs",
+        "Austria turquoise lake",
+        "Austria green valley"
     ],
 
     "🇳🇿 Nova Zelândia": [
-        "New Zealand landscape",
-        "New Zealand mountains",
-        "New Zealand waterfalls",
-        "New Zealand cliffs",
-        "New Zealand fjord",
-        "New Zealand nature",
-        "New Zealand scenic"
+        "New Zealand fjord cliffs",
+        "New Zealand mountain lake",
+        "New Zealand green valley",
+        "New Zealand mountain cabin",
+        "New Zealand dramatic coastline",
+        "New Zealand turquoise lake",
+        "New Zealand green mountains"
     ],
 
     "🇦🇺 Austrália": [
-        "Australia landscape",
-        "Australia mountains",
-        "Australia waterfalls",
-        "Australia cliffs",
-        "Australia canyon",
-        "Australia nature"
+        "Australia ocean cliffs",
+        "Australia dramatic coastline",
+        "Australia mountain lake",
+        "Australia green valley",
+        "Australia rocky cliffs",
+        "Australia beautiful valley"
     ],
 
     "🇯🇵 Japão": [
-        "Japan landscape",
-        "Japan mountains",
-        "Japan waterfalls",
-        "Japan cliffs",
+        "Japan mountain lake cabin",
+        "Japan green valley",
+        "Japan mountain chalet",
+        "Japan dramatic cliffs",
         "Japan lake mountains",
-        "Japan nature",
-        "Japan scenic"
+        "Japan green mountain valley"
     ],
 
     "🇨🇳 China": [
-        "China landscape",
-        "China mountains",
-        "China waterfalls",
-        "China cliffs",
-        "China canyon",
-        "China nature"
+        "China dramatic cliffs",
+        "China mountain lake",
+        "China green valley",
+        "China mountain cabin",
+        "China rocky mountains",
+        "China beautiful valley"
     ],
 
     "🇰🇷 Coreia do Sul": [
-        "South Korea landscape",
-        "South Korea mountains",
-        "South Korea waterfalls",
-        "South Korea cliffs",
-        "South Korea nature"
+        "South Korea mountain lake",
+        "South Korea green valley",
+        "South Korea dramatic cliffs",
+        "South Korea mountain cabin",
+        "South Korea lake mountains"
     ],
 
     "🇮🇩 Indonésia": [
-        "Indonesia landscape",
-        "Indonesia waterfalls",
-        "Indonesia mountains",
-        "Indonesia cliffs",
-        "Indonesia nature",
-        "Indonesia scenic"
+        "Indonesia ocean cliffs",
+        "Indonesia dramatic coastline",
+        "Indonesia mountain lake",
+        "Indonesia green valley",
+        "Indonesia volcanic lake",
+        "Indonesia rocky cliffs"
     ],
 
     "🇹🇭 Tailândia": [
-        "Thailand landscape",
-        "Thailand waterfalls",
-        "Thailand mountains",
-        "Thailand cliffs",
-        "Thailand nature"
+        "Thailand dramatic sea cliffs",
+        "Thailand ocean cliffs",
+        "Thailand mountain lake",
+        "Thailand green valley",
+        "Thailand limestone cliffs"
     ],
 
     "🇵🇭 Filipinas": [
-        "Philippines landscape",
-        "Philippines waterfalls",
-        "Philippines cliffs",
-        "Philippines mountains",
-        "Philippines nature"
+        "Philippines dramatic sea cliffs",
+        "Philippines turquoise lake",
+        "Philippines ocean cliffs",
+        "Philippines green valley",
+        "Philippines limestone cliffs"
     ],
 
     "🇮🇳 Índia": [
-        "India landscape",
-        "India mountains",
-        "India waterfalls",
-        "India cliffs",
-        "India nature"
+        "India mountain lake",
+        "India green valley",
+        "India dramatic cliffs",
+        "India mountain cabin",
+        "India beautiful valley"
     ],
 
     "🇳🇵 Nepal": [
-        "Nepal landscape",
-        "Nepal mountains",
-        "Himalayas Nepal",
-        "Nepal waterfalls",
-        "Nepal nature",
-        "Nepal viewpoint"
+        "Nepal mountain lake",
+        "Nepal green valley mountains",
+        "Himalayas mountain lake",
+        "Nepal mountain cabin",
+        "Nepal dramatic cliffs",
+        "Nepal green valley"
     ],
 
     "🇿🇦 África do Sul": [
-        "South Africa landscape",
-        "South Africa mountains",
-        "South Africa waterfalls",
-        "South Africa cliffs",
-        "South Africa nature"
+        "South Africa ocean cliffs",
+        "South Africa dramatic coastline",
+        "South Africa mountain lake",
+        "South Africa green valley",
+        "South Africa rocky cliffs"
     ],
 
     "🇰🇪 Quênia": [
-        "Kenya landscape",
-        "Kenya mountains",
-        "Kenya waterfalls",
-        "Kenya cliffs",
-        "Kenya nature"
+        "Kenya mountain lake",
+        "Kenya green valley",
+        "Kenya dramatic cliffs",
+        "Kenya mountain landscape",
+        "Kenya beautiful valley"
     ],
 
     "🇲🇦 Marrocos": [
-        "Morocco landscape",
-        "Morocco mountains",
-        "Morocco waterfalls",
-        "Morocco canyon",
-        "Morocco cliffs",
-        "Morocco nature"
+        "Morocco dramatic cliffs",
+        "Morocco mountain valley",
+        "Morocco green valley",
+        "Morocco mountain lake",
+        "Morocco rocky mountains"
     ],
 
     "🇹🇿 Tanzânia": [
-        "Tanzania landscape",
-        "Tanzania mountains",
-        "Tanzania waterfalls",
-        "Tanzania cliffs",
-        "Tanzania nature"
+        "Tanzania mountain lake",
+        "Tanzania green valley",
+        "Tanzania dramatic cliffs",
+        "Tanzania mountain landscape"
     ],
 
     "🇹🇷 Turquia": [
-        "Turkey landscape",
-        "Turkey mountains",
-        "Turkey waterfalls",
-        "Turkey cliffs",
-        "Turkey canyon",
-        "Turkey nature"
+        "Turkey ocean cliffs",
+        "Turkey dramatic coastline",
+        "Turkey mountain lake",
+        "Turkey green valley",
+        "Turkey rocky cliffs"
     ],
 
     "🇬🇷 Grécia": [
-        "Greece landscape",
-        "Greece mountains",
-        "Greece cliffs",
-        "Greece waterfalls",
-        "Greece nature",
-        "Greece scenic"
+        "Greece dramatic sea cliffs",
+        "Greece ocean cliffs",
+        "Greece mountain lake",
+        "Greece green valley",
+        "Greece rocky coastline"
     ],
 
     "🇭🇷 Croácia": [
-        "Croatia landscape",
-        "Croatia waterfalls",
-        "Croatia mountains",
-        "Croatia cliffs",
-        "Croatia nature"
+        "Croatia dramatic sea cliffs",
+        "Croatia turquoise lake",
+        "Croatia mountain valley",
+        "Croatia rocky coastline",
+        "Croatia green valley"
     ],
 
     "🇸🇮 Eslovênia": [
-        "Slovenia landscape",
-        "Slovenia mountains",
-        "Slovenia waterfalls",
         "Slovenia lake mountains",
-        "Slovenia nature"
+        "Slovenia green valley cabin",
+        "Slovenia mountain lake",
+        "Slovenia alpine chalet",
+        "Slovenia dramatic cliffs",
+        "Slovenia green valley"
     ],
 
     "🇫🇮 Finlândia": [
-        "Finland landscape",
-        "Finland lakes",
+        "Finland beautiful lake",
+        "Finland lake cabin",
+        "Finland green valley",
         "Finland forest lake",
-        "Finland waterfalls",
-        "Finland nature"
+        "Finland mountain lake"
     ],
 
     "🇸🇪 Suécia": [
-        "Sweden landscape",
-        "Sweden mountains",
-        "Sweden waterfalls",
-        "Sweden lake",
-        "Sweden nature"
+        "Sweden mountain lake",
+        "Sweden lake cabin",
+        "Sweden green valley",
+        "Sweden dramatic cliffs",
+        "Sweden beautiful lake"
     ],
 
     "🇵🇱 Polônia": [
-        "Poland landscape",
-        "Poland mountains",
-        "Poland waterfalls",
-        "Poland cliffs",
-        "Poland nature"
+        "Poland mountain lake",
+        "Poland green valley",
+        "Poland mountain cabin",
+        "Poland dramatic cliffs",
+        "Poland lake mountains"
     ],
 
     "🇫🇴 Ilhas Faroé": [
-        "Faroe Islands",
-        "Faroe Islands landscape",
-        "Faroe Islands mountains",
-        "Faroe Islands cliffs",
-        "Faroe Islands waterfalls",
+        "Faroe Islands dramatic sea cliffs",
         "Faroe Islands ocean cliffs",
-        "Faroe Islands coastline",
-        "Faroe Islands fjord",
-        "Faroe Islands valley",
-        "Faroe Islands nature",
-        "Faroe Islands scenic",
-        "Faroe Islands viewpoint",
-        "Faroe Islands dramatic landscape",
+        "Faroe Islands green valley",
+        "Faroe Islands waterfall cliffs",
+        "Faroe Islands fjord mountains",
         "Faroe Islands green mountains",
-        "Faroe Islands waterfall mountain",
-        "Faroe Islands sea cliffs",
-        "Faroe Islands hiking",
-        "Faroe Islands remote landscape",
-        "Faroe Islands aerial landscape"
+        "Faroe Islands beautiful lake",
+        "Faroe Islands valley cabin",
+        "Faroe Islands dramatic coastline",
+        "Faroe Islands rocky cliffs",
+        "Faroe Islands ocean landscape",
+        "Faroe Islands mountain valley"
     ]
 }
 
 
 # ============================================================
-# PALAVRAS PARA FILTRAR OS VÍDEOS
+# PALAVRAS BOAS
 # ============================================================
 
 PALAVRAS_BOAS = [
-    "cliff",
-    "cliffs",
-    "cliffside",
-    "cliff edge",
-    "edge",
-    "mountain",
-    "mountains",
-    "mountain view",
-    "waterfall",
-    "waterfalls",
-    "canyon",
-    "canyons",
-    "gorge",
-    "valley",
-    "landscape",
-    "nature",
-    "nature landscape",
-    "scenic",
-    "viewpoint",
-    "view",
-    "panorama",
-    "panoramic",
+
+    # MAR
     "ocean",
     "sea",
     "coast",
     "coastline",
-    "lake",
-    "river",
+    "coastal",
+    "shore",
+    "seaside",
+    "sea cliffs",
+    "ocean cliffs",
+    "coastal cliffs",
+
+    # PAREDÕES / ROCHAS
+    "cliff",
+    "cliffs",
+    "cliffside",
+    "rock",
     "rocks",
     "rocky",
+    "rock formation",
+    "dramatic cliffs",
+    "dramatic rocks",
+
+    # MONTANHAS
+    "mountain",
+    "mountains",
+    "mountain range",
+    "alps",
     "peak",
+    "peaks",
     "summit",
-    "hiking",
-    "trail",
-    "dramatic",
-    "wild",
+
+    # LAGOS
+    "lake",
+    "lakes",
+    "mountain lake",
+    "alpine lake",
+    "turquoise lake",
+    "blue lake",
+    "lake mountains",
+
+    # VALES
+    "valley",
+    "green valley",
+    "mountain valley",
+    "alpine valley",
+    "green mountains",
+    "green landscape",
+
+    # CHALÉS
+    "cabin",
+    "cabins",
+    "mountain cabin",
+    "lake cabin",
+    "chalet",
+    "chalet mountain",
+    "mountain house",
+
+    # NATUREZA / CENÁRIO
+    "landscape",
+    "nature",
+    "scenic",
+    "scenic view",
+    "viewpoint",
+    "panorama",
+    "panoramic",
+    "dramatic landscape",
     "wilderness",
-    "aerial",
-    "look down",
-    "height",
-    "high",
-    "beautiful nature",
+
+    # FAROÉ / FJORDS
     "faroe",
     "faroe islands",
     "fjord",
+    "fjords",
     "green mountains",
     "sea cliffs"
 ]
 
 
+# ============================================================
+# PALAVRAS RUINS
+# ============================================================
+
 PALAVRAS_RUINS = [
+
+    "hiking",
+    "hike",
+    "trail",
+    "trails",
+    "trekking",
+    "trek",
+    "walking trail",
+    "walking",
+    "path",
+    "footpath",
+
     "city",
     "street",
     "road",
@@ -518,23 +555,27 @@ PALAVRAS_RUINS = [
     "building",
     "hotel",
     "restaurant",
-    "house",
-    "home",
+    "house interior",
+    "home interior",
     "indoor",
     "room",
     "office",
+
     "pool",
     "swimming pool",
+
     "boat",
     "boats",
     "ship",
     "cruise",
+
     "people",
     "person",
     "man",
     "woman",
     "face",
     "selfie",
+
     "concert",
     "party",
     "wedding",
@@ -553,6 +594,7 @@ PALAVRAS_RUINS = [
 HTML = """
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
 
 <meta charset="UTF-8">
@@ -560,7 +602,7 @@ HTML = """
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0">
 
-<title>Cliff & Nature Reel</title>
+<title>Mundo Afora</title>
 
 <style>
 
@@ -638,10 +680,10 @@ button:hover {
 
 <div class="container">
 
-<h1>🌎 Cliff & Nature Reel</h1>
+<h1>🌎 Mundo Afora</h1>
 
 <div class="subtitle">
-Vídeos verticais de paisagens naturais
+Paisagens incríveis pelo mundo
 </div>
 
 <form method="POST">
@@ -675,8 +717,12 @@ Vídeos verticais de paisagens naturais
 ⏱️ Aproximadamente 60 segundos<br>
 🔇 Sem áudio<br>
 📝 Sem texto<br>
-🎥 Vídeos reais do Pexels<br>
-🔍 Zoom suave
+🌊 Mar e oceanos<br>
+🪨 Grandes paredões e falésias<br>
+🏞️ Lagos e vales verdes<br>
+🏡 Chalés e cabanas<br>
+🔍 Zoom suave<br>
+©️ mundo.afora0
 
 </div>
 
@@ -694,6 +740,7 @@ Vídeos verticais de paisagens naturais
 def buscar_videos(query):
 
     if not PEXELS_API_KEY:
+
         raise RuntimeError(
             "PEXELS_API_KEY não configurada."
         )
@@ -731,7 +778,10 @@ def buscar_videos(query):
 
 def escolher_arquivo(video):
 
-    arquivos = video.get("video_files", [])
+    arquivos = video.get(
+        "video_files",
+        []
+    )
 
     candidatos = []
 
@@ -739,8 +789,13 @@ def escolher_arquivo(video):
 
         link = arquivo.get("link")
 
-        largura = arquivo.get("width") or 0
-        altura = arquivo.get("height") or 0
+        largura = arquivo.get(
+            "width"
+        ) or 0
+
+        altura = arquivo.get(
+            "height"
+        ) or 0
 
         if not link:
             continue
@@ -753,52 +808,70 @@ def escolher_arquivo(video):
 
         proporcao = altura / largura
 
-        # Precisa ser vertical
         if proporcao < 1.35:
             continue
 
         area = largura * altura
 
         candidatos.append({
+
             "link": link,
             "width": largura,
             "height": altura,
             "area": area
+
         })
 
     if not candidatos:
         return None
 
-    # Prioriza vídeos grandes
     candidatos.sort(
         key=lambda x: x["area"],
         reverse=True
     )
 
-    # Evita arquivos absurdamente grandes
     adequados = [
+
         x for x in candidatos
+
         if x["width"] <= 2160
         and x["height"] <= 3840
+
     ]
 
     if adequados:
+
         return adequados[0]
 
     return candidatos[0]
 
 
 # ============================================================
-# PONTUAÇÃO DO VÍDEO
+# PONTUAÇÃO
 # ============================================================
 
 def pontuar_video(video):
 
     texto = ""
 
-    texto += str(video.get("url", ""))
+    texto += str(
+        video.get(
+            "url",
+            ""
+        )
+    )
+
     texto += " "
-    texto += str(video.get("user", {}).get("name", ""))
+
+    texto += str(
+        video.get(
+            "user",
+            {}
+        ).get(
+            "name",
+            ""
+        )
+    )
 
     texto = texto.lower()
 
@@ -807,12 +880,14 @@ def pontuar_video(video):
     for palavra in PALAVRAS_BOAS:
 
         if palavra.lower() in texto:
+
             score += 5
 
     for palavra in PALAVRAS_RUINS:
 
         if palavra.lower() in texto:
-            score -= 10
+
+            score -= 15
 
     return score
 
@@ -821,7 +896,10 @@ def pontuar_video(video):
 # SELECIONAR MELHORES
 # ============================================================
 
-def selecionar_melhores_videos(videos, quantidade=12):
+def selecionar_melhores_videos(
+    videos,
+    quantidade=12
+):
 
     unicos = {}
 
@@ -835,32 +913,52 @@ def selecionar_melhores_videos(videos, quantidade=12):
         if video_id in unicos:
             continue
 
-        duracao = video.get("duration", 0)
+        duracao = video.get(
+            "duration",
+            0
+        )
 
         if duracao < 5:
             continue
 
-        arquivo = escolher_arquivo(video)
+        arquivo = escolher_arquivo(
+            video
+        )
 
         if not arquivo:
             continue
 
-        video["_arquivo_escolhido"] = arquivo
-        video["_score"] = pontuar_video(video)
+        video[
+            "_arquivo_escolhido"
+        ] = arquivo
 
-        unicos[video_id] = video
+        video[
+            "_score"
+        ] = pontuar_video(
+            video
+        )
 
-    lista = list(unicos.values())
+        unicos[
+            video_id
+        ] = video
+
+    lista = list(
+        unicos.values()
+    )
 
     lista.sort(
-        key=lambda x: x.get("_score", 0),
+        key=lambda x: x.get(
+            "_score",
+            0
+        ),
         reverse=True
     )
 
-    # Pegamos uma quantidade maior para variar
     lista = lista[:30]
 
-    random.shuffle(lista)
+    random.shuffle(
+        lista
+    )
 
     return lista[:quantidade]
 
@@ -871,11 +969,17 @@ def selecionar_melhores_videos(videos, quantidade=12):
 
 def baixar_video(video):
 
-    arquivo = video["_arquivo_escolhido"]
+    arquivo = video[
+        "_arquivo_escolhido"
+    ]
 
-    url = arquivo["link"]
+    url = arquivo[
+        "link"
+    ]
 
-    nome = f"{uuid.uuid4().hex}.mp4"
+    nome = (
+        f"{uuid.uuid4().hex}.mp4"
+    )
 
     caminho = os.path.join(
         VIDEO_DIR,
@@ -890,14 +994,20 @@ def baixar_video(video):
 
     resposta.raise_for_status()
 
-    with open(caminho, "wb") as f:
+    with open(
+        caminho,
+        "wb"
+    ) as f:
 
         for bloco in resposta.iter_content(
             chunk_size=1024 * 1024
         ):
 
             if bloco:
-                f.write(bloco)
+
+                f.write(
+                    bloco
+                )
 
     return caminho
 
@@ -906,7 +1016,9 @@ def baixar_video(video):
 # DOWNLOAD PARALELO
 # ============================================================
 
-def baixar_videos_paralelo(videos):
+def baixar_videos_paralelo(
+    videos
+):
 
     resultados = []
 
@@ -915,20 +1027,29 @@ def baixar_videos_paralelo(videos):
     ) as executor:
 
         tarefas = [
+
             executor.submit(
                 baixar_video,
                 video
             )
+
             for video in videos
+
         ]
 
-        for tarefa in as_completed(tarefas):
+        for tarefa in as_completed(
+            tarefas
+        ):
 
             try:
 
-                caminho = tarefa.result()
+                caminho = (
+                    tarefa.result()
+                )
 
-                resultados.append(caminho)
+                resultados.append(
+                    caminho
+                )
 
             except Exception as e:
 
@@ -951,16 +1072,6 @@ def processar_clipe_zoom(
     zoom_final=1.12
 ):
 
-    """
-    Processamento estável para Railway.
-
-    NÃO usa zoompan.
-
-    O vídeo é convertido para vertical
-    1080x1920 e recebe um zoom suave
-    através de crop + scale.
-    """
-
     duracao = max(
         1.0,
         float(duracao)
@@ -969,14 +1080,6 @@ def processar_clipe_zoom(
     velocidade_zoom = (
         zoom_final - 1.0
     ) / duracao
-
-    # Mantemos uma área maior para permitir
-    # o movimento de zoom.
-    #
-    # A expressão usa o tempo do vídeo (t).
-    #
-    # O tamanho do crop vai diminuindo
-    # gradualmente, criando o efeito de aproximação.
 
     largura_crop = (
         f"2160/(1+{velocidade_zoom:.6f}*t)"
@@ -995,9 +1098,13 @@ def processar_clipe_zoom(
     )
 
     filtro = (
-        "scale=2160:3840:force_original_aspect_ratio=increase,"
+        "scale=2160:3840:"
+        "force_original_aspect_ratio=increase,"
         "crop=2160:3840,"
-        f"crop={largura_crop}:{altura_crop}:{x_crop}:{y_crop},"
+        f"crop={largura_crop}:"
+        f"{altura_crop}:"
+        f"{x_crop}:"
+        f"{y_crop},"
         "scale=1080:1920,"
         "fps=24,"
         "setsar=1"
@@ -1038,14 +1145,17 @@ def processar_clipe_zoom(
         output_path
     ]
 
-    print("\n==============================")
-    print("PROCESSANDO CLIPE")
-    print("==============================")
-    print("Entrada:", input_path)
-    print("Saída:", output_path)
-    print("Duração:", duracao)
-    print("Zoom final:", zoom_final)
-    print("==============================\n")
+    print(
+        "\n=============================="
+    )
+
+    print(
+        "PROCESSANDO CLIPE"
+    )
+
+    print(
+        "=============================="
+    )
 
     resultado = subprocess.run(
         comando,
@@ -1057,7 +1167,122 @@ def processar_clipe_zoom(
     if resultado.returncode != 0:
 
         print(
-            "ERRO COMPLETO DO FFMPEG:"
+            resultado.stderr
+        )
+
+        raise RuntimeError(
+            "Erro real do FFmpeg:\n\n"
+            + resultado.stderr[-6000:]
+        )
+
+    return output_path
+
+
+# ============================================================
+# APLICAR MARCA D'ÁGUA
+# ============================================================
+
+def aplicar_marca_dagua(
+    input_path,
+    output_path
+):
+
+    """
+    Marca d'água:
+    mundo.afora0
+
+    Posição:
+    canto inferior direito.
+
+    Transparência:
+    75%.
+
+    Tamanho:
+    aproximadamente 32 px.
+
+    Margem:
+    45 px.
+    """
+
+    texto = WATERMARK.replace(
+        "'",
+        "\\'"
+    )
+
+    filtro = (
+        "drawtext="
+        "text='"
+        + texto
+        + "':"
+        "fontcolor=white@0.75:"
+        "fontsize=32:"
+        "x=w-tw-45:"
+        "y=h-th-55:"
+        "shadowcolor=black@0.55:"
+        "shadowx=2:"
+        "shadowy=2"
+    )
+
+    comando = [
+
+        FFMPEG,
+
+        "-y",
+
+        "-i",
+        input_path,
+
+        "-vf",
+        filtro,
+
+        "-an",
+
+        "-c:v",
+        "libx264",
+
+        "-preset",
+        "veryfast",
+
+        "-crf",
+        "23",
+
+        "-pix_fmt",
+        "yuv420p",
+
+        "-movflags",
+        "+faststart",
+
+        output_path
+    ]
+
+    print(
+        "\n=============================="
+    )
+
+    print(
+        "APLICANDO MARCA D'ÁGUA"
+    )
+
+    print(
+        "=============================="
+    )
+
+    print(
+        "Marca:",
+        WATERMARK
+    )
+
+    resultado = subprocess.run(
+        comando,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    if resultado.returncode != 0:
+
+        print(
+            "ERRO NA MARCA D'ÁGUA:"
         )
 
         print(
@@ -1065,7 +1290,7 @@ def processar_clipe_zoom(
         )
 
         raise RuntimeError(
-            "Erro real do FFmpeg ao processar o clipe:\n\n"
+            "Erro ao aplicar marca d'água:\n\n"
             + resultado.stderr[-6000:]
         )
 
@@ -1138,9 +1363,17 @@ def juntar_clipes(
         output_path
     ]
 
-    print("\n==============================")
-    print("JUNTANDO CLIPES")
-    print("==============================\n")
+    print(
+        "\n=============================="
+    )
+
+    print(
+        "JUNTANDO CLIPES"
+    )
+
+    print(
+        "=============================="
+    )
 
     resultado = subprocess.run(
         comando,
@@ -1150,15 +1383,16 @@ def juntar_clipes(
     )
 
     try:
-        os.remove(lista_path)
+
+        os.remove(
+            lista_path
+        )
+
     except Exception:
+
         pass
 
     if resultado.returncode != 0:
-
-        print(
-            "ERRO AO JUNTAR:"
-        )
 
         print(
             resultado.stderr
@@ -1185,6 +1419,8 @@ def criar_reel(
 
     tempo_restante = DURATION
 
+    video_base = None
+
     try:
 
         for index, video_path in enumerate(
@@ -1194,7 +1430,6 @@ def criar_reel(
             if tempo_restante <= 0:
                 break
 
-            # Cada cena fica entre 7 e 11 segundos.
             duracao_clipe = random.uniform(
                 7.0,
                 11.0
@@ -1238,22 +1473,32 @@ def criar_reel(
                 f"Clipe {index + 1} concluído"
             )
 
-            print(
-                "Tempo restante:",
-                round(
-                    tempo_restante,
-                    2
-                )
-            )
-
         if not clipes_processados:
 
             raise RuntimeError(
                 "Nenhum clipe foi processado."
             )
 
+        # ----------------------------------------------------
+        # PRIMEIRO: juntar todos os clipes
+        # ----------------------------------------------------
+
+        video_base = os.path.join(
+            TEMP_DIR,
+            f"base_{uuid.uuid4().hex}.mp4"
+        )
+
         juntar_clipes(
             clipes_processados,
+            video_base
+        )
+
+        # ----------------------------------------------------
+        # DEPOIS: aplicar marca d'água
+        # ----------------------------------------------------
+
+        aplicar_marca_dagua(
+            video_base,
             output_path
         )
 
@@ -1263,15 +1508,32 @@ def criar_reel(
         for caminho in videos:
 
             try:
-                os.remove(caminho)
+                os.remove(
+                    caminho
+                )
+
             except Exception:
                 pass
 
-        # Remove clipes temporários
+        # Remove clipes
         for caminho in clipes_processados:
 
             try:
-                os.remove(caminho)
+                os.remove(
+                    caminho
+                )
+
+            except Exception:
+                pass
+
+        # Remove vídeo base
+        if video_base:
+
+            try:
+                os.remove(
+                    video_base
+                )
+
             except Exception:
                 pass
 
@@ -1294,12 +1556,17 @@ def gerar_video(pais):
 
     todos_videos = []
 
-    print("\n==============================")
-    print("BUSCANDO VÍDEOS")
-    print("==============================")
+    print(
+        "\n=============================="
+    )
 
-    # Limita a quantidade de consultas
-    # para não exagerar na API.
+    print(
+        "BUSCANDO PAISAGEM"
+    )
+
+    print(
+        "=============================="
+    )
 
     for query in consultas[:10]:
 
@@ -1364,10 +1631,6 @@ def gerar_video(pais):
         len(videos_selecionados)
     )
 
-    # ========================================================
-    # DOWNLOAD
-    # ========================================================
-
     videos_baixados = (
         baixar_videos_paralelo(
             videos_selecionados
@@ -1385,12 +1648,8 @@ def gerar_video(pais):
         len(videos_baixados)
     )
 
-    # ========================================================
-    # OUTPUT
-    # ========================================================
-
     nome_saida = (
-        "cliff_reel_"
+        "mundo_afora_"
         + uuid.uuid4().hex
         + ".mp4"
     )
@@ -1399,10 +1658,6 @@ def gerar_video(pais):
         OUTPUT_DIR,
         nome_saida
     )
-
-    # ========================================================
-    # PROCESSAMENTO
-    # ========================================================
 
     criar_reel(
         videos_baixados,
@@ -1420,6 +1675,7 @@ def gerar_video(pais):
     "/",
     methods=["GET", "POST"]
 )
+
 def index():
 
     if request.method == "POST":
@@ -1437,7 +1693,7 @@ def index():
             return send_file(
                 arquivo,
                 as_attachment=True,
-                download_name="cliff_nature_reel.mp4",
+                download_name="mundo_afora.mp4",
                 mimetype="video/mp4"
             )
 
@@ -1452,7 +1708,9 @@ def index():
             )
 
             return f"""
+
             <html>
+
             <body style="
                 background:#111;
                 color:white;
@@ -1460,14 +1718,18 @@ def index():
                 padding:30px;
             ">
 
-            <h2>❌ Erro ao criar vídeo</h2>
+            <h2>
+                ❌ Erro ao criar vídeo
+            </h2>
 
             <pre style="
                 white-space:pre-wrap;
                 background:#222;
                 padding:20px;
                 border-radius:10px;
-            ">{html.escape(str(e))}</pre>
+            ">
+{html.escape(str(e))}
+            </pre>
 
             <br>
 
@@ -1485,7 +1747,9 @@ def index():
             </a>
 
             </body>
+
             </html>
+
             """
 
     return render_template_string(
@@ -1499,18 +1763,39 @@ def index():
 # ============================================================
 
 @app.route("/health")
+
 def health():
 
     return {
+
         "status": "online",
-        "app": "Cliff & Nature Reel",
-        "type": "nature_vertical_video",
-        "duration": DURATION,
-        "resolution": f"{WIDTH}x{HEIGHT}",
-        "fps": FPS,
-        "zoom": True,
-        "audio": False,
-        "text": False
+
+        "app": "Mundo Afora",
+
+        "type":
+        "nature_vertical_video",
+
+        "duration":
+        DURATION,
+
+        "resolution":
+        f"{WIDTH}x{HEIGHT}",
+
+        "fps":
+        FPS,
+
+        "zoom":
+        True,
+
+        "watermark":
+        WATERMARK,
+
+        "audio":
+        False,
+
+        "text":
+        False
+
     }
 
 
