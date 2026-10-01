@@ -9,6 +9,7 @@ import requests
 import imageio_ffmpeg
 
 from flask import Flask, request, render_template_string, send_file
+from PIL import Image, ImageDraw, ImageFont
 
 
 # ============================================================
@@ -189,7 +190,7 @@ PAISES = {
 
 
 # ============================================================
-# TERMOS QUE NÃO QUEREMOS
+# TERMOS PARA EVITAR
 # ============================================================
 
 PALAVRAS_RUINS = [
@@ -257,9 +258,7 @@ HTML = """
 }
 
 body {
-
     margin: 0;
-
     min-height: 100vh;
 
     background:
@@ -272,15 +271,10 @@ body {
 
     color: white;
 
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
 
     display: flex;
-
     align-items: center;
-
     justify-content: center;
 
     padding: 20px;
@@ -289,7 +283,6 @@ body {
 .container {
 
     width: 100%;
-
     max-width: 500px;
 
     background:
@@ -378,7 +371,6 @@ button {
 }
 
 button:hover {
-
     opacity: 0.9;
 }
 
@@ -456,7 +448,7 @@ Paisagens incríveis pelo mundo
 
 
 # ============================================================
-# EXECUTAR COMANDO
+# EXECUTAR FFMPEG
 # ============================================================
 
 def executar(comando):
@@ -554,7 +546,7 @@ def limpar_diretorio(diretorio):
 
 
 # ============================================================
-# BUSCAR NO PEXELS
+# BUSCAR PEXELS
 # ============================================================
 
 def buscar_videos(query):
@@ -688,17 +680,12 @@ def escolher_arquivo_video(video):
         )
 
     if not candidatos:
-
         return None
 
     preferencias = [
-
         (1080, 1920),
-
         (1440, 2560),
-
         (720, 1280),
-
         (2160, 3840),
     ]
 
@@ -713,11 +700,8 @@ def escolher_arquivo_video(video):
             ):
 
                 return {
-
                     "link": link,
-
                     "width": largura,
-
                     "height": altura
                 }
 
@@ -731,17 +715,14 @@ def escolher_arquivo_video(video):
     largura, altura, link = candidatos[0]
 
     return {
-
         "link": link,
-
         "width": largura,
-
         "height": altura
     }
 
 
 # ============================================================
-# PONTUAÇÃO
+# PONTUAR
 # ============================================================
 
 def pontuar_video(video):
@@ -886,16 +867,9 @@ def baixar_video(video, indice):
 
     if not arquivo:
 
-        print(
-            "[ERRO] "
-            "Arquivo não encontrado."
-        )
-
         return None
 
-    url = arquivo[
-        "link"
-    ]
+    url = arquivo["link"]
 
     nome = (
         f"{uuid.uuid4().hex}.mp4"
@@ -957,8 +931,7 @@ def baixar_video(video, indice):
     except Exception as e:
 
         print(
-            f"[ERRO DOWNLOAD] "
-            f"{e}"
+            f"[ERRO DOWNLOAD] {e}"
         )
 
         try:
@@ -986,10 +959,7 @@ def verificar_video(caminho):
     if not caminho:
         return False
 
-    if not os.path.exists(
-        caminho
-    ):
-
+    if not os.path.exists(caminho):
         return False
 
     tamanho = os.path.getsize(
@@ -997,11 +967,6 @@ def verificar_video(caminho):
     )
 
     if tamanho < 10000:
-
-        print(
-            "[ERRO] "
-            "Arquivo muito pequeno."
-        )
 
         return False
 
@@ -1017,7 +982,6 @@ def verificar_video(caminho):
 
         "-f",
         "null",
-
         "-"
     ]
 
@@ -1026,23 +990,136 @@ def verificar_video(caminho):
     )
 
     if resultado is None:
-
         return False
 
-    if resultado.returncode != 0:
-
-        print(
-            "[ERRO] "
-            "Vídeo inválido."
-        )
-
-        return False
-
-    return True
+    return (
+        resultado.returncode == 0
+    )
 
 
 # ============================================================
-# PROCESSAR CLIPE + MARCA D'ÁGUA
+# CRIAR WATERMARK PNG
+# ============================================================
+
+def criar_watermark():
+
+    caminho = os.path.join(
+        TEMP_DIR,
+        "watermark.png"
+    )
+
+    texto = "mundo.afora0"
+
+    fontes = [
+
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ]
+
+    fonte = None
+
+    for item in fontes:
+
+        if os.path.exists(item):
+
+            fonte = item
+            break
+
+    if fonte:
+
+        try:
+
+            font = ImageFont.truetype(
+                fonte,
+                38
+            )
+
+        except Exception:
+
+            font = ImageFont.load_default()
+
+    else:
+
+        font = ImageFont.load_default()
+
+    base = Image.new(
+        "RGBA",
+        (500, 100),
+        (0, 0, 0, 0)
+    )
+
+    draw = ImageDraw.Draw(
+        base
+    )
+
+    bbox = draw.textbbox(
+        (0, 0),
+        texto,
+        font=font
+    )
+
+    largura = (
+        bbox[2] - bbox[0]
+    )
+
+    altura = (
+        bbox[3] - bbox[1]
+    )
+
+    margem = 15
+
+    imagem = Image.new(
+        "RGBA",
+        (
+            largura + margem * 2,
+            altura + margem * 2
+        ),
+        (0, 0, 0, 0)
+    )
+
+    draw = ImageDraw.Draw(
+        imagem
+    )
+
+    # Sombra
+    draw.text(
+        (
+            margem + 2,
+            margem + 2
+        ),
+        texto,
+        font=font,
+        fill=(0, 0, 0, 70)
+    )
+
+    # Branco discreto
+    draw.text(
+        (
+            margem,
+            margem
+        ),
+        texto,
+        font=font,
+        fill=(255, 255, 255, 180)
+    )
+
+    imagem.save(
+        caminho,
+        "PNG"
+    )
+
+    print(
+        f"[WATERMARK PNG] {caminho}"
+    )
+
+    return caminho
+
+
+# ============================================================
+# PROCESSAR CLIPE COM WATERMARK
 # ============================================================
 
 def processar_clipe(
@@ -1051,47 +1128,24 @@ def processar_clipe(
     duracao=CLIP_DURATION
 ):
 
-    # --------------------------------------------------------
-    # ESCAPAMOS O TEXTO PARA O FILTRO DO FFMPEG
-    # --------------------------------------------------------
-
-    texto = "mundo.afora0"
-
-    texto = (
-        texto
-        .replace("\\", "\\\\")
-        .replace(":", "\\:")
-        .replace("'", "\\'")
-        .replace("[", "\\[")
-        .replace("]", "\\]")
-    )
-
-    # --------------------------------------------------------
-    # FILTRO
-    # --------------------------------------------------------
-    #
-    # 1. Ajusta para 1080x1920
-    # 2. 24 FPS
-    # 3. Coloca marca d'água
-    #
-    # A marca fica centralizada horizontalmente
-    # e em aproximadamente 58% da altura.
-    #
-    # --------------------------------------------------------
+    watermark = criar_watermark()
 
     filtro = (
+        "[0:v]"
         "scale=1080:1920,"
         "fps=24,"
-        "setsar=1,"
-        f"drawtext="
-        f"text='{texto}':"
-        "fontcolor=white@0.72:"
-        "fontsize=38:"
-        "x=(w-text_w)/2:"
-        "y=h*0.58:"
-        "shadowcolor=black@0.35:"
-        "shadowx=2:"
-        "shadowy=2"
+        "setsar=1"
+        "[main];"
+
+        "[1:v]"
+        "format=rgba"
+        "[wm];"
+
+        "[main][wm]"
+        "overlay="
+        "(main_w-overlay_w)/2:"
+        "main_h*0.58:"
+        "format=auto"
     )
 
     comando = [
@@ -1111,11 +1165,17 @@ def processar_clipe(
         "-i",
         input_path,
 
+        "-i",
+        watermark,
+
         "-t",
         str(duracao),
 
-        "-vf",
+        "-filter_complex",
         filtro,
+
+        "-map",
+        "0:v:0",
 
         "-an",
 
@@ -1158,7 +1218,7 @@ def processar_clipe(
     )
 
     print(
-        "[WATERMARK] mundo.afora0"
+        "[WATERMARK] PNG + OVERLAY"
     )
 
     print(
@@ -1185,11 +1245,6 @@ def processar_clipe(
         output_path
     ):
 
-        print(
-            "[ERRO] "
-            "Arquivo de saída não existe."
-        )
-
         return False
 
     tamanho = (
@@ -1212,13 +1267,18 @@ def processar_clipe(
 # CONCATENAR
 # ============================================================
 
-def criar_lista_concat(
+def juntar_clipes(
     clipes,
-    lista_path
+    output_path
 ):
 
+    lista = os.path.join(
+        TEMP_DIR,
+        "lista.txt"
+    )
+
     with open(
-        lista_path,
+        lista,
         "w",
         encoding="utf-8"
     ) as arquivo:
@@ -1234,33 +1294,9 @@ def criar_lista_concat(
                 .replace("\\", "/")
             )
 
-            caminho = (
-                caminho
-                .replace(
-                    "'",
-                    "'\\''"
-                )
-            )
-
             arquivo.write(
                 f"file '{caminho}'\n"
             )
-
-
-def juntar_clipes(
-    clipes,
-    output_path
-):
-
-    lista_path = os.path.join(
-        TEMP_DIR,
-        "lista_concat.txt"
-    )
-
-    criar_lista_concat(
-        clipes,
-        lista_path
-    )
 
     comando = [
 
@@ -1280,7 +1316,7 @@ def juntar_clipes(
         "0",
 
         "-i",
-        lista_path,
+        lista,
 
         "-c",
         "copy",
@@ -1300,36 +1336,22 @@ def juntar_clipes(
 
     try:
 
-        if os.path.exists(
-            lista_path
-        ):
+        if os.path.exists(lista):
 
-            os.remove(
-                lista_path
-            )
+            os.remove(lista)
 
     except Exception:
         pass
 
     if resultado is None:
-
         return False
 
     if resultado.returncode != 0:
-
-        print(
-            "[ERRO CONCAT]"
-        )
-
         return False
 
-    if not os.path.exists(
+    return os.path.exists(
         output_path
-    ):
-
-        return False
-
-    return True
+    )
 
 
 # ============================================================
@@ -1378,6 +1400,9 @@ def limitar_duracao(
         "-r",
         "24",
 
+        "-movflags",
+        "+faststart",
+
         output_path
     ]
 
@@ -1386,11 +1411,9 @@ def limitar_duracao(
     )
 
     if resultado is None:
-
         return False
 
     if resultado.returncode != 0:
-
         return False
 
     return os.path.exists(
@@ -1421,9 +1444,11 @@ def gerar_video(pais):
         f"Destino: {pais}"
     )
 
-    # --------------------------------------------------------
-    # LIMPAR
-    # --------------------------------------------------------
+    if not PEXELS_API_KEY:
+
+        raise Exception(
+            "PEXELS_API_KEY não configurada."
+        )
 
     limpar_diretorio(
         VIDEO_DIR
@@ -1432,10 +1457,6 @@ def gerar_video(pais):
     limpar_diretorio(
         TEMP_DIR
     )
-
-    # --------------------------------------------------------
-    # BUSCAR
-    # --------------------------------------------------------
 
     videos = selecionar_videos(
         pais
@@ -1447,10 +1468,6 @@ def gerar_video(pais):
             "Nenhum vídeo encontrado."
         )
 
-    # --------------------------------------------------------
-    # PROCESSAR UM POR VEZ
-    # --------------------------------------------------------
-
     clipes = []
 
     for indice, video in enumerate(
@@ -1458,7 +1475,6 @@ def gerar_video(pais):
     ):
 
         if len(clipes) >= CLIP_COUNT:
-
             break
 
         original = None
@@ -1472,27 +1488,13 @@ def gerar_video(pais):
 
         try:
 
-            # ----------------------------------------------
-            # DOWNLOAD
-            # ----------------------------------------------
-
             original = baixar_video(
                 video,
                 indice
             )
 
             if not original:
-
-                print(
-                    "[PULAR] "
-                    "Falha no download."
-                )
-
                 continue
-
-            # ----------------------------------------------
-            # VERIFICAR
-            # ----------------------------------------------
 
             if not verificar_video(
                 original
@@ -1504,10 +1506,6 @@ def gerar_video(pais):
                 )
 
                 continue
-
-            # ----------------------------------------------
-            # PROCESSAR
-            # ----------------------------------------------
 
             print("")
             print(
@@ -1552,10 +1550,6 @@ def gerar_video(pais):
 
         finally:
 
-            # ----------------------------------------------
-            # APAGA O ORIGINAL
-            # ----------------------------------------------
-
             if original:
 
                 try:
@@ -1573,19 +1567,8 @@ def gerar_video(pais):
                             "Original removido."
                         )
 
-                except Exception as e:
-
-                    print(
-                        "[ERRO AO APAGAR]"
-                    )
-
-                    print(
-                        repr(e)
-                    )
-
-    # --------------------------------------------------------
-    # VERIFICAR
-    # --------------------------------------------------------
+                except Exception:
+                    pass
 
     print("")
 
@@ -1602,7 +1585,7 @@ def gerar_video(pais):
         )
 
     # --------------------------------------------------------
-    # JUNTAR
+    # CONCAT
     # --------------------------------------------------------
 
     base = os.path.join(
@@ -1642,10 +1625,6 @@ def gerar_video(pais):
         nome_final
     )
 
-    # --------------------------------------------------------
-    # GARANTIR 60 SEGUNDOS
-    # --------------------------------------------------------
-
     sucesso = limitar_duracao(
         base,
         final_path
@@ -1658,7 +1637,7 @@ def gerar_video(pais):
         )
 
     # --------------------------------------------------------
-    # LIMPAR TEMPORÁRIOS
+    # LIMPEZA
     # --------------------------------------------------------
 
     try:
@@ -1674,11 +1653,8 @@ def gerar_video(pais):
     except Exception as e:
 
         print(
-            "[ERRO LIMPEZA FINAL]"
-        )
-
-        print(
-            repr(e)
+            f"[ERRO LIMPEZA FINAL] "
+            f"{e}"
         )
 
     if not os.path.exists(
@@ -1760,13 +1736,10 @@ def index():
 
         return send_file(
             caminho,
-
             as_attachment=True,
-
             download_name=os.path.basename(
                 caminho
             ),
-
             mimetype="video/mp4"
         )
 
@@ -1799,8 +1772,7 @@ def index():
 <meta charset="UTF-8">
 
 <meta name="viewport"
-      content="width=device-width,
-      initial-scale=1.0">
+content="width=device-width, initial-scale=1.0">
 
 <style>
 
@@ -1860,9 +1832,7 @@ Volte e tente novamente.
 # HEALTH CHECK
 # ============================================================
 
-@app.route(
-    "/health"
-)
+@app.route("/health")
 
 def health():
 
