@@ -24,7 +24,6 @@ PORT = int(os.getenv("PORT", "8080"))
 WIDTH = 1080
 HEIGHT = 1920
 FPS = 24
-
 DURATION = 60
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -41,7 +40,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 # ============================================================
-# PAÍSES
+# PAÍSES E PESQUISAS
 # ============================================================
 
 PAISES = {
@@ -53,7 +52,7 @@ PAISES = {
         "Brazil scenic mountains",
         "Brazil mountain lake",
         "Brazil lake mountains",
-        "Brazil ocean cliffs"
+        "Brazil ocean cliffs",
     ],
 
     "Ilhas Faroé": [
@@ -62,7 +61,7 @@ PAISES = {
         "Faroe Islands lake mountains",
         "Faroe Islands green valley",
         "Faroe Islands waterfall mountains",
-        "Faroe Islands scenic landscape"
+        "Faroe Islands scenic landscape",
     ],
 
     "Suíça": [
@@ -72,7 +71,7 @@ PAISES = {
         "Swiss mountain valley",
         "Swiss Alps chalet",
         "Switzerland green valley",
-        "Swiss lake mountains"
+        "Swiss lake mountains",
     ],
 
     "Noruega": [
@@ -81,7 +80,7 @@ PAISES = {
         "Norway cliffs ocean",
         "Norway green valley",
         "Norway mountain cabin",
-        "Norwegian fjord landscape"
+        "Norwegian fjord landscape",
     ],
 
     "Islândia": [
@@ -90,7 +89,7 @@ PAISES = {
         "Iceland cliffs ocean",
         "Iceland green valley",
         "Iceland scenic landscape",
-        "Iceland waterfall mountains"
+        "Iceland waterfall mountains",
     ],
 
     "Canadá": [
@@ -99,7 +98,7 @@ PAISES = {
         "Canada mountain cabin",
         "Canada green valley",
         "Canadian Rockies landscape",
-        "Canada turquoise lake mountains"
+        "Canada turquoise lake mountains",
     ],
 
     "Nova Zelândia": [
@@ -108,7 +107,7 @@ PAISES = {
         "New Zealand mountain cabin",
         "New Zealand green valley",
         "New Zealand lake mountains",
-        "New Zealand scenic landscape"
+        "New Zealand scenic landscape",
     ],
 
     "Áustria": [
@@ -117,7 +116,7 @@ PAISES = {
         "Austria mountain valley",
         "Austrian Alps landscape",
         "Austria green valley",
-        "Austria lake mountains"
+        "Austria lake mountains",
     ],
 
     "Eslovênia": [
@@ -125,7 +124,7 @@ PAISES = {
         "Slovenia Lake Bled mountains",
         "Slovenia mountain valley",
         "Slovenia green valley",
-        "Slovenia mountain waterfall"
+        "Slovenia mountain waterfall",
     ],
 
     "França": [
@@ -133,7 +132,7 @@ PAISES = {
         "France mountain valley",
         "French Alps cabin",
         "France mountain lake",
-        "French Alps landscape"
+        "French Alps landscape",
     ],
 
     "Itália": [
@@ -141,7 +140,7 @@ PAISES = {
         "Dolomites lake mountains",
         "Dolomites mountain cabin",
         "Italy green mountain valley",
-        "Dolomites landscape"
+        "Dolomites landscape",
     ],
 
     "Estados Unidos": [
@@ -150,7 +149,7 @@ PAISES = {
         "USA mountain cabin",
         "USA mountain valley",
         "Yosemite mountains lake",
-        "Alaska mountains lake"
+        "Alaska mountains lake",
     ],
 
     "Japão": [
@@ -158,14 +157,14 @@ PAISES = {
         "Japan mountain valley",
         "Japan scenic mountains",
         "Japan lake mountains",
-        "Japan green valley"
+        "Japan green valley",
     ],
 
     "Peru": [
         "Peru Andes mountains lake",
         "Peru mountain valley",
         "Peru green mountains",
-        "Peru scenic mountain lake"
+        "Peru scenic mountain lake",
     ],
 
     "Chile": [
@@ -173,7 +172,7 @@ PAISES = {
         "Chile mountain lake",
         "Patagonia mountains",
         "Chile green valley",
-        "Chile scenic landscape"
+        "Chile scenic landscape",
     ],
 
     "Argentina": [
@@ -181,13 +180,13 @@ PAISES = {
         "Argentina mountain lake",
         "Patagonia mountain valley",
         "Argentina green valley",
-        "Argentina scenic mountains"
-    ]
+        "Argentina scenic mountains",
+    ],
 }
 
 
 # ============================================================
-# TERMOS QUE NÃO QUEREMOS
+# PALAVRAS A EVITAR
 # ============================================================
 
 PALAVRAS_RUINS = [
@@ -199,8 +198,8 @@ PALAVRAS_RUINS = [
     "women",
     "hiker",
     "hiking",
-    "trekking",
     "trail",
+    "trekking",
     "trek",
     "walking",
     "walk",
@@ -226,7 +225,7 @@ PALAVRAS_RUINS = [
     "concert",
     "party",
     "crowd",
-    "airport"
+    "airport",
 ]
 
 
@@ -434,7 +433,8 @@ Paisagens bonitas para vídeos verticais
 
 Vídeo vertical 1080×1920<br>
 60 segundos • 24 FPS<br>
-Sem música • Sem narração
+Sem música • Sem narração<br>
+Marca: mundo.afora0
 
 </div>
 
@@ -447,27 +447,41 @@ Sem música • Sem narração
 
 
 # ============================================================
-# UTILIDADES
+# EXECUTAR COMANDO
+# ============================================================
+
+def executar(comando):
+
+    try:
+
+        resultado = subprocess.run(
+            comando,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        return resultado
+
+    except Exception as e:
+
+        print(
+            f"[ERRO SUBPROCESS] {e}"
+        )
+
+        return None
+
+
+# ============================================================
+# LIMPAR NOME
 # ============================================================
 
 def limpar_nome(nome):
 
-    nome = re.sub(
+    return re.sub(
         r"[^a-zA-Z0-9_-]",
         "_",
         nome
-    )
-
-    return nome
-
-
-def executar(comando):
-
-    return subprocess.run(
-        comando,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
     )
 
 
@@ -482,145 +496,157 @@ def criar_marca_dagua():
         "watermark.png"
     )
 
-    # --------------------------------------------------------
-    # Tenta encontrar uma fonte disponível
-    # --------------------------------------------------------
-
     fontes = [
 
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 
-        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
     ]
 
-    fonte = None
+    fonte_encontrada = None
 
     for caminho_fonte in fontes:
 
         if os.path.exists(caminho_fonte):
 
-            fonte = caminho_fonte
+            fonte_encontrada = caminho_fonte
 
             break
 
-    # --------------------------------------------------------
-    # Tamanho do texto
-    # --------------------------------------------------------
+    tamanho_fonte = 38
 
-    tamanho = 38
+    if fonte_encontrada:
 
-    if fonte:
-
-        font = ImageFont.truetype(
-            fonte,
-            tamanho
+        fonte = ImageFont.truetype(
+            fonte_encontrada,
+            tamanho_fonte
         )
 
     else:
 
-        font = ImageFont.load_default()
+        fonte = ImageFont.load_default()
 
     texto = "mundo.afora0"
 
-    # --------------------------------------------------------
-    # Calcula tamanho
-    # --------------------------------------------------------
-
-    dummy = Image.new(
+    imagem_teste = Image.new(
         "RGBA",
         (10, 10),
         (0, 0, 0, 0)
     )
 
-    draw = ImageDraw.Draw(dummy)
-
-    bbox = draw.textbbox(
-        (0, 0),
-        texto,
-        font=font
+    desenho = ImageDraw.Draw(
+        imagem_teste
     )
 
-    largura = bbox[2] - bbox[0]
-    altura = bbox[3] - bbox[1]
+    caixa = desenho.textbbox(
+        (0, 0),
+        texto,
+        font=fonte
+    )
 
-    # Pequena margem
+    largura_texto = caixa[2] - caixa[0]
+    altura_texto = caixa[3] - caixa[1]
+
     margem = 12
 
-    img_largura = largura + margem * 2
-    img_altura = altura + margem * 2
+    largura = (
+        largura_texto
+        + margem * 2
+    )
 
-    # --------------------------------------------------------
-    # PNG transparente
-    # --------------------------------------------------------
+    altura = (
+        altura_texto
+        + margem * 2
+    )
 
-    img = Image.new(
+    imagem = Image.new(
         "RGBA",
         (
-            img_largura,
-            img_altura
+            largura,
+            altura
         ),
         (0, 0, 0, 0)
     )
 
-    draw = ImageDraw.Draw(img)
+    desenho = ImageDraw.Draw(
+        imagem
+    )
 
-    # Sombra discreta
-    draw.text(
+    # Sombra
+    desenho.text(
         (
             margem + 2,
             margem + 2
         ),
         texto,
-        font=font,
-        fill=(0, 0, 0, 110)
+        font=fonte,
+        fill=(
+            0,
+            0,
+            0,
+            100
+        )
     )
 
-    # Texto branco
-    draw.text(
+    # Texto
+    desenho.text(
         (
             margem,
             margem
         ),
         texto,
-        font=font,
-        fill=(255, 255, 255, 185)
+        font=fonte,
+        fill=(
+            255,
+            255,
+            255,
+            185
+        )
     )
 
-    img.save(
+    imagem.save(
         caminho,
         "PNG"
+    )
+
+    print(
+        f"[WATERMARK] {caminho}"
     )
 
     return caminho
 
 
 # ============================================================
-# BUSCAR VÍDEOS NO PEXELS
+# BUSCAR PEXELS
 # ============================================================
 
 def buscar_pexels(query):
 
     if not PEXELS_API_KEY:
 
-        print("❌ PEXELS_API_KEY não configurada")
+        print(
+            "❌ PEXELS_API_KEY não configurada."
+        )
 
         return []
 
-    url = "https://api.pexels.com/videos/search"
+    url = (
+        "https://api.pexels.com/videos/search"
+    )
 
     headers = {
         "Authorization": PEXELS_API_KEY
     }
 
-    params = {
+    parametros = {
         "query": query,
         "orientation": "portrait",
         "size": "large",
-        "per_page": 80
+        "per_page": 80,
     }
 
     try:
@@ -628,7 +654,7 @@ def buscar_pexels(query):
         resposta = requests.get(
             url,
             headers=headers,
-            params=params,
+            params=parametros,
             timeout=30
         )
 
@@ -661,7 +687,7 @@ def buscar_pexels(query):
 
 
 # ============================================================
-# ESCOLHER ARQUIVO DO PEXELS
+# ESCOLHER ARQUIVO DO VÍDEO
 # ============================================================
 
 def escolher_arquivo_video(video):
@@ -701,26 +727,36 @@ def escolher_arquivo_video(video):
         if largura <= 0 or altura <= 0:
             continue
 
-        # Vertical
         proporcao = altura / largura
 
         if proporcao < 1.35:
             continue
 
-        # Prioridade de resolução
-        if largura == 1080 and altura == 1920:
+        if (
+            largura == 1080
+            and altura == 1920
+        ):
 
             prioridade = 1
 
-        elif largura == 1440 and altura == 2560:
+        elif (
+            largura == 1440
+            and altura == 2560
+        ):
 
             prioridade = 2
 
-        elif largura == 720 and altura == 1280:
+        elif (
+            largura == 720
+            and altura == 1280
+        ):
 
             prioridade = 3
 
-        elif largura == 2160 and altura == 3840:
+        elif (
+            largura == 2160
+            and altura == 3840
+        ):
 
             prioridade = 4
 
@@ -743,9 +779,9 @@ def escolher_arquivo_video(video):
         return None
 
     candidatos.sort(
-        key=lambda x: (
-            x[0],
-            x[1]
+        key=lambda item: (
+            item[0],
+            item[1]
         )
     )
 
@@ -800,7 +836,7 @@ def pontuar_video(video):
 
     for palavra in PALAVRAS_RUINS:
 
-        if palavra.lower() in texto:
+        if palavra in texto:
 
             pontos -= 100
 
@@ -866,14 +902,15 @@ def selecionar_videos(pais):
     selecionados = lista[:15]
 
     print(
-        f"[SELECIONADOS] {len(selecionados)}"
+        f"[SELECIONADOS] "
+        f"{len(selecionados)}"
     )
 
     return selecionados
 
 
 # ============================================================
-# DOWNLOAD
+# BAIXAR VÍDEO
 # ============================================================
 
 def baixar_video(item):
@@ -945,18 +982,23 @@ def baixar_video(item):
     except Exception as e:
 
         print(
-            f"[ERRO DOWNLOAD] {indice}: {e}"
+            f"[ERRO DOWNLOAD] "
+            f"{indice}: {e}"
         )
 
-        try:
+        if os.path.exists(
+            caminho
+        ):
 
-            if os.path.exists(caminho):
+            try:
 
-                os.remove(caminho)
+                os.remove(
+                    caminho
+                )
 
-        except:
+            except:
 
-            pass
+                pass
 
         return None
 
@@ -986,6 +1028,10 @@ def verificar_video(caminho):
     resultado = executar(
         comando
     )
+
+    if resultado is None:
+
+        return False
 
     if resultado.returncode != 0:
 
@@ -1061,9 +1107,17 @@ def processar_clipe(
         output_path
     ]
 
+    print(
+        f"[FFMPEG] Processando {input_path}"
+    )
+
     resultado = executar(
         comando
     )
+
+    if resultado is None:
+
+        return False
 
     if resultado.returncode != 0:
 
@@ -1087,6 +1141,12 @@ def processar_clipe(
         print(
             "===================================="
         )
+
+        return False
+
+    if not os.path.exists(
+        output_path
+    ):
 
         return False
 
@@ -1117,20 +1177,17 @@ def juntar_clipes(
 
             for clipe in clipes:
 
-                caminho_absoluto = os.path.abspath(
+                caminho = os.path.abspath(
                     clipe
                 )
 
-                caminho_absoluto = (
-                    caminho_absoluto
-                    .replace(
-                        "'",
-                        "'\\''"
-                    )
+                caminho = caminho.replace(
+                    "'",
+                    "'\\''"
                 )
 
                 arquivo.write(
-                    f"file '{caminho_absoluto}'\n"
+                    f"file '{caminho}'\n"
                 )
 
         comando = [
@@ -1162,9 +1219,17 @@ def juntar_clipes(
             output_path
         ]
 
+        print(
+            "[JUNTANDO] Clipes..."
+        )
+
         resultado = executar(
             comando
         )
+
+        if resultado is None:
+
+            return False
 
         if resultado.returncode != 0:
 
@@ -1186,9 +1251,15 @@ def juntar_clipes(
             lista_path
         ):
 
-            os.remove(
-                lista_path
-            )
+            try:
+
+                os.remove(
+                    lista_path
+                )
+
+            except:
+
+                pass
 
 
 # ============================================================
@@ -1207,22 +1278,22 @@ def aplicar_marca_dagua(
     watermark = criar_marca_dagua()
 
     # --------------------------------------------------------
-    # POSIÇÃO
-    #
-    # vídeo: 1080 x 1920
-    #
-    # x = centralizado
-    #
-    # y = aproximadamente 58%
-    # um pouco abaixo do meio
+    # CENTRALIZADA
+    # UM POUCO ABAIXO DO MEIO
     # --------------------------------------------------------
 
-    x = "(main_w-overlay_w)/2"
+    posicao_x = (
+        "(main_w-overlay_w)/2"
+    )
 
-    y = "main_h*0.58"
+    posicao_y = (
+        "main_h*0.58"
+    )
 
     filtro = (
-        f"overlay={x}:{y}"
+        f"overlay="
+        f"{posicao_x}:"
+        f"{posicao_y}"
     )
 
     comando = [
@@ -1248,9 +1319,8 @@ def aplicar_marca_dagua(
         "-map",
         "0:v:0",
 
-        "-map",
-        "0:a?",
-        
+        "-an",
+
         "-c:v",
         "libx264",
 
@@ -1263,8 +1333,8 @@ def aplicar_marca_dagua(
         "-pix_fmt",
         "yuv420p",
 
-        "-c:a",
-        "copy",
+        "-r",
+        "24",
 
         "-movflags",
         "+faststart",
@@ -1272,9 +1342,17 @@ def aplicar_marca_dagua(
         output_path
     ]
 
+    print(
+        "[MARCA D'ÁGUA] Aplicando..."
+    )
+
     resultado = executar(
         comando
     )
+
+    if resultado is None:
+
+        return False
 
     if resultado.returncode != 0:
 
@@ -1301,11 +1379,17 @@ def aplicar_marca_dagua(
 
         return False
 
+    if not os.path.exists(
+        output_path
+    ):
+
+        return False
+
     return True
 
 
 # ============================================================
-# LIMPAR ARQUIVOS
+# LIMPAR TEMPORÁRIOS
 # ============================================================
 
 def limpar_temporarios():
@@ -1315,7 +1399,10 @@ def limpar_temporarios():
         TEMP_DIR
     ]:
 
-        if not os.path.exists(pasta):
+        if not os.path.exists(
+            pasta
+        ):
+
             continue
 
         for nome in os.listdir(
@@ -1337,6 +1424,14 @@ def limpar_temporarios():
                         caminho
                     )
 
+                elif os.path.isdir(
+                    caminho
+                ):
+
+                    shutil.rmtree(
+                        caminho
+                    )
+
             except Exception as e:
 
                 print(
@@ -1353,16 +1448,22 @@ def gerar_video(pais):
     limpar_temporarios()
 
     print("")
-    print("====================================")
-    print("🌎 MUNDO AFORA")
-    print("====================================")
+    print(
+        "===================================="
+    )
+    print(
+        "🌎 MUNDO AFORA"
+    )
+    print(
+        "===================================="
+    )
 
     print(
         f"Destino: {pais}"
     )
 
     # --------------------------------------------------------
-    # Buscar
+    # BUSCAR
     # --------------------------------------------------------
 
     videos = selecionar_videos(
@@ -1376,25 +1477,27 @@ def gerar_video(pais):
         )
 
     # --------------------------------------------------------
-    # Download
+    # DOWNLOAD
     # --------------------------------------------------------
 
     baixados = []
+
+    tarefas = []
 
     with ThreadPoolExecutor(
         max_workers=2
     ) as executor:
 
-        tarefas = [
+        for indice, video in enumerate(
+            videos
+        ):
 
-            executor.submit(
-                baixar_video,
-                (indice, video)
+            tarefas.append(
+                executor.submit(
+                    baixar_video,
+                    (indice, video)
+                )
             )
-
-            for indice, video
-            in enumerate(videos)
-        ]
 
         for tarefa in as_completed(
             tarefas
@@ -1409,7 +1512,8 @@ def gerar_video(pais):
                 )
 
     print(
-        f"[BAIXADOS] {len(baixados)}"
+        f"[BAIXADOS] "
+        f"{len(baixados)}"
     )
 
     if not baixados:
@@ -1419,7 +1523,7 @@ def gerar_video(pais):
         )
 
     # --------------------------------------------------------
-    # Processar
+    # PROCESSAR
     # --------------------------------------------------------
 
     random.shuffle(
@@ -1433,4 +1537,247 @@ def gerar_video(pais):
     ):
 
         print(
-            f"[PROCESSANDO] Clipe {indice
+            f"[PROCESSANDO] Clipe {indice}"
+        )
+
+        if not verificar_video(
+            video
+        ):
+
+            print(
+                f"[IGNORADO] "
+                f"Clipe {indice}"
+            )
+
+            continue
+
+        saida_clipe = os.path.join(
+            TEMP_DIR,
+            (
+                f"clip_"
+                f"{indice}_"
+                f"{uuid.uuid4().hex}.mp4"
+            )
+        )
+
+        sucesso = processar_clipe(
+            video,
+            saida_clipe,
+            8
+        )
+
+        if sucesso:
+
+            clipes_processados.append(
+                saida_clipe
+            )
+
+        # 8 clipes x 8 segundos
+        # = aproximadamente 64 segundos
+        if len(
+            clipes_processados
+        ) >= 8:
+
+            break
+
+    print(
+        f"[CLIPES PROCESSADOS] "
+        f"{len(clipes_processados)}"
+    )
+
+    if not clipes_processados:
+
+        raise Exception(
+            "Nenhum clipe pôde ser processado."
+        )
+
+    # --------------------------------------------------------
+    # JUNTAR
+    # --------------------------------------------------------
+
+    video_base = os.path.join(
+        TEMP_DIR,
+        (
+            f"video_base_"
+            f"{uuid.uuid4().hex}.mp4"
+        )
+    )
+
+    sucesso = juntar_clipes(
+        clipes_processados,
+        video_base
+    )
+
+    if not sucesso:
+
+        raise Exception(
+            "Erro ao juntar os clipes."
+        )
+
+    # --------------------------------------------------------
+    # MARCA D'ÁGUA
+    # --------------------------------------------------------
+
+    nome_final = (
+        "mundo_afora_"
+        f"{limpar_nome(pais)}_"
+        f"{uuid.uuid4().hex}.mp4"
+    )
+
+    resultado_final = os.path.join(
+        OUTPUT_DIR,
+        nome_final
+    )
+
+    sucesso = aplicar_marca_dagua(
+        video_base,
+        resultado_final
+    )
+
+    if not sucesso:
+
+        raise Exception(
+            "Erro ao aplicar marca d'água."
+        )
+
+    print(
+        "===================================="
+    )
+
+    print(
+        "✅ VÍDEO FINALIZADO"
+    )
+
+    print(
+        resultado_final
+    )
+
+    print(
+        "===================================="
+    )
+
+    return resultado_final
+
+
+# ============================================================
+# ROTA PRINCIPAL
+# ============================================================
+
+@app.route(
+    "/",
+    methods=[
+        "GET",
+        "POST"
+    ]
+)
+def index():
+
+    if request.method == "POST":
+
+        pais = request.form.get(
+            "pais"
+        )
+
+        if pais not in PAISES:
+
+            return (
+                "Destino inválido.",
+                400
+            )
+
+        try:
+
+            arquivo = gerar_video(
+                pais
+            )
+
+            return send_file(
+                arquivo,
+                as_attachment=True,
+                download_name=os.path.basename(
+                    arquivo
+                ),
+                mimetype="video/mp4"
+            )
+
+        except Exception as e:
+
+            print(
+                f"[ERRO FINAL] {e}"
+            )
+
+            return f"""
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Erro</title>
+</head>
+
+<body style="
+    background:#081510;
+    color:white;
+    font-family:Arial;
+    padding:30px;
+">
+
+<h2>❌ Erro ao gerar vídeo</h2>
+
+<pre style="
+    white-space:pre-wrap;
+    background:#111;
+    padding:20px;
+    border-radius:10px;
+">{e}</pre>
+
+<br>
+
+<a href="/"
+style="
+    color:white;
+    background:#333;
+    padding:12px 20px;
+    border-radius:8px;
+    text-decoration:none;
+">
+Voltar
+</a>
+
+</body>
+</html>
+"""
+
+    return render_template_string(
+        HTML,
+        paises=PAISES.keys()
+    )
+
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+@app.route("/health")
+def health():
+
+    return {
+        "status": "ok",
+        "project": "Mundo Afora",
+        "resolution": "1080x1920",
+        "fps": 24,
+        "duration": 60,
+        "audio": False,
+        "watermark": "mundo.afora0",
+        "watermark_position": "center_58_percent",
+    }
+
+
+# ============================================================
+# START LOCAL
+# ============================================================
+
+if __name__ == "__main__":
+
+    app.run(
+        host="0.0.0.0",
+        port=PORT
+    )
