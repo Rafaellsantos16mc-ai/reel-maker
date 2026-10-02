@@ -8,7 +8,6 @@ import textwrap
 
 import requests
 from flask import Flask, request, render_template_string, send_file
-from PIL import Image, ImageDraw, ImageFont
 import imageio_ffmpeg
 import edge_tts
 
@@ -20,12 +19,9 @@ app = Flask(__name__)
 # CONFIGURAÇÕES
 # ============================================================
 
-# RESOLUÇÃO FINAL
 WIDTH = 1080
 HEIGHT = 1920
 
-# PROCESSAMENTO INTERNO
-# Muito mais leve para o Railway
 PROCESS_WIDTH = 540
 PROCESS_HEIGHT = 960
 
@@ -40,11 +36,9 @@ PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 VOICE = "pt-BR-AntonioNeural"
 VOICE_RATE = "+8%"
 
-VIDEO_DIR = "videos"
 OUTPUT_DIR = "outputs"
 TEMP_DIR = "temp"
 
-os.makedirs(VIDEO_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(TEMP_DIR, exist_ok=True)
 
@@ -120,7 +114,6 @@ body {
 
 h1 {
     text-align: center;
-    margin-bottom: 10px;
 }
 
 p {
@@ -249,7 +242,12 @@ def executar_ffmpeg(comando):
 
     print("\n[FFMPEG]")
 
-    print(" ".join(str(x) for x in comando))
+    print(
+        " ".join(
+            str(x)
+            for x in comando
+        )
+    )
 
     resultado = subprocess.run(
         comando,
@@ -260,7 +258,9 @@ def executar_ffmpeg(comando):
 
     if resultado.returncode != 0:
 
-        print("\n[ERRO FFMPEG]")
+        print(
+            "\n[ERRO FFMPEG]"
+        )
 
         print(
             "RETURN CODE:",
@@ -272,7 +272,8 @@ def executar_ffmpeg(comando):
         )
 
         raise RuntimeError(
-            "FFmpeg falhou:\n\n" +
+            "FFmpeg falhou:\n\n"
+            +
             resultado.stderr[-5000:]
         )
 
@@ -291,10 +292,13 @@ def buscar_video(termo):
             "PEXELS_API_KEY não configurada."
         )
 
-    url = "https://api.pexels.com/videos/search"
+    url = (
+        "https://api.pexels.com/videos/search"
+    )
 
     headers = {
-        "Authorization": PEXELS_API_KEY
+        "Authorization":
+        PEXELS_API_KEY
     }
 
     params = {
@@ -310,11 +314,7 @@ def buscar_video(termo):
         timeout=30
     )
 
-    if resposta.status_code != 200:
-
-        raise RuntimeError(
-            f"Pexels retornou HTTP {resposta.status_code}"
-        )
+    resposta.raise_for_status()
 
     dados = resposta.json()
 
@@ -326,9 +326,11 @@ def buscar_video(termo):
     if not videos:
         return None
 
-    random.shuffle(videos)
+    random.shuffle(
+        videos
+    )
 
-    # Primeiro tenta vertical
+    # Preferir vídeos verticais
     for video in videos:
 
         arquivos = video.get(
@@ -340,13 +342,19 @@ def buscar_video(termo):
 
         for arquivo in arquivos:
 
-            largura = arquivo.get(
-                "width"
-            ) or 0
+            largura = (
+                arquivo.get(
+                    "width"
+                )
+                or 0
+            )
 
-            altura = arquivo.get(
-                "height"
-            ) or 0
+            altura = (
+                arquivo.get(
+                    "height"
+                )
+                or 0
+            )
 
             link = arquivo.get(
                 "link"
@@ -357,12 +365,24 @@ def buscar_video(termo):
 
             if altura >= largura:
 
+                diferenca = abs(
+                    (
+                        altura
+                        /
+                        max(
+                            largura,
+                            1
+                        )
+                    )
+                    -
+                    (
+                        16 / 9
+                    )
+                )
+
                 candidatos.append(
                     (
-                        abs(
-                            (altura / max(largura, 1))
-                            - (16 / 9)
-                        ),
+                        diferenca,
                         link
                     )
                 )
@@ -387,9 +407,19 @@ def buscar_video(termo):
 
             arquivos.sort(
                 key=lambda x:
-                (x.get("width") or 0)
+                (
+                    x.get(
+                        "width"
+                    )
+                    or 0
+                )
                 *
-                (x.get("height") or 0),
+                (
+                    x.get(
+                        "height"
+                    )
+                    or 0
+                ),
                 reverse=True
             )
 
@@ -407,7 +437,10 @@ def buscar_video(termo):
 # DOWNLOAD
 # ============================================================
 
-def baixar_video(url, caminho):
+def baixar_video(
+    url,
+    caminho
+):
 
     print(
         "[DOWNLOAD]",
@@ -432,7 +465,9 @@ def baixar_video(url, caminho):
         ):
 
             if bloco:
-                arquivo.write(bloco)
+                arquivo.write(
+                    bloco
+                )
 
     tamanho = os.path.getsize(
         caminho
@@ -470,9 +505,11 @@ def processar_clipe(
 
         "-vf",
         (
-            f"scale={PROCESS_WIDTH}:{PROCESS_HEIGHT}:"
+            f"scale={PROCESS_WIDTH}:"
+            f"{PROCESS_HEIGHT}:"
             "force_original_aspect_ratio=increase,"
-            f"crop={PROCESS_WIDTH}:{PROCESS_HEIGHT}"
+            f"crop={PROCESS_WIDTH}:"
+            f"{PROCESS_HEIGHT}"
         ),
 
         "-an",
@@ -514,7 +551,11 @@ def concatenar_clipes(
 
     lista = os.path.join(
         TEMP_DIR,
-        f"lista_{uuid.uuid4().hex}.txt"
+        "lista_"
+        +
+        uuid.uuid4().hex
+        +
+        ".txt"
     )
 
     with open(
@@ -533,8 +574,10 @@ def concatenar_clipes(
             )
 
             arquivo.write(
-                "file '" +
-                caminho +
+                "file '"
+                +
+                caminho
+                +
                 "'\n"
             )
 
@@ -572,12 +615,9 @@ def concatenar_clipes(
 
     finally:
 
-        try:
-            os.remove(
-                lista
-            )
-        except:
-            pass
+        apagar_arquivo(
+            lista
+        )
 
 
 # ============================================================
@@ -681,7 +721,7 @@ def criar_roteiro(
 
 
 # ============================================================
-# ÁUDIO
+# GERAR ÁUDIO
 # ============================================================
 
 async def gerar_audio_async(
@@ -714,207 +754,6 @@ def gerar_audio(
 
 
 # ============================================================
-# FONTE
-# ============================================================
-
-def encontrar_fonte():
-
-    fontes = [
-
-        "/usr/share/fonts/truetype/dejavu/"
-        "DejaVuSans-Bold.ttf",
-
-        "/usr/share/fonts/truetype/liberation2/"
-        "LiberationSans-Bold.ttf",
-
-        "/usr/share/fonts/truetype/dejavu/"
-        "DejaVuSans.ttf"
-    ]
-
-    for fonte in fontes:
-
-        if os.path.exists(fonte):
-
-            return fonte
-
-    return None
-
-
-# ============================================================
-# LEGENDA PNG
-# ============================================================
-
-def criar_imagem_legenda(
-    texto,
-    arquivo
-):
-
-    imagem = Image.new(
-        "RGBA",
-        (
-            PROCESS_WIDTH,
-            PROCESS_HEIGHT
-        ),
-        (0, 0, 0, 0)
-    )
-
-    desenho = ImageDraw.Draw(
-        imagem
-    )
-
-    fonte_path = encontrar_fonte()
-
-    if fonte_path:
-
-        fonte = ImageFont.truetype(
-            fonte_path,
-            30
-        )
-
-    else:
-
-        fonte = ImageFont.load_default()
-
-    linhas = textwrap.wrap(
-        texto,
-        width=28
-    )
-
-    dados = []
-
-    for linha in linhas:
-
-        caixa = desenho.textbbox(
-            (0, 0),
-            linha,
-            font=fonte
-        )
-
-        largura = (
-            caixa[2] -
-            caixa[0]
-        )
-
-        altura = (
-            caixa[3] -
-            caixa[1]
-        )
-
-        dados.append(
-            (
-                linha,
-                largura,
-                altura
-            )
-        )
-
-    espacamento = 8
-
-    altura_total = sum(
-        x[2]
-        for x in dados
-    )
-
-    altura_total += (
-        max(
-            len(dados) - 1,
-            0
-        )
-        *
-        espacamento
-    )
-
-    y = int(
-        PROCESS_HEIGHT * 0.70
-        -
-        altura_total / 2
-    )
-
-    largura_max = max(
-        x[1]
-        for x in dados
-    )
-
-    padding_x = 25
-    padding_y = 18
-
-    esquerda = (
-        PROCESS_WIDTH // 2
-        -
-        largura_max // 2
-        -
-        padding_x
-    )
-
-    direita = (
-        PROCESS_WIDTH // 2
-        +
-        largura_max // 2
-        +
-        padding_x
-    )
-
-    cima = y - padding_y
-
-    baixo = (
-        y
-        +
-        altura_total
-        +
-        padding_y
-    )
-
-    desenho.rounded_rectangle(
-        (
-            esquerda,
-            cima,
-            direita,
-            baixo
-        ),
-        radius=16,
-        fill=(0, 0, 0, 175)
-    )
-
-    for linha, largura, altura in dados:
-
-        x = (
-            PROCESS_WIDTH // 2
-            -
-            largura // 2
-        )
-
-        desenho.text(
-            (
-                x + 2,
-                y + 2
-            ),
-            linha,
-            font=fonte,
-            fill=(0, 0, 0, 255)
-        )
-
-        desenho.text(
-            (
-                x,
-                y
-            ),
-            linha,
-            font=fonte,
-            fill=(255, 255, 255, 255)
-        )
-
-        y += (
-            altura +
-            espacamento
-        )
-
-    imagem.save(
-        arquivo,
-        "PNG"
-    )
-
-
-# ============================================================
 # DIVIDIR TEXTO
 # ============================================================
 
@@ -930,12 +769,15 @@ def dividir_texto(
 
     alvo = max(
         1,
-        len(texto) / quantidade
+        len(texto)
+        /
+        quantidade
     )
 
     partes = []
 
     atual = []
+
     tamanho = 0
 
     for palavra in palavras:
@@ -945,7 +787,9 @@ def dividir_texto(
         )
 
         tamanho += (
-            len(palavra) + 1
+            len(palavra)
+            +
+            1
         )
 
         if (
@@ -957,16 +801,21 @@ def dividir_texto(
         ):
 
             partes.append(
-                " ".join(atual)
+                " ".join(
+                    atual
+                )
             )
 
             atual = []
+
             tamanho = 0
 
     if atual:
 
         partes.append(
-            " ".join(atual)
+            " ".join(
+                atual
+            )
         )
 
     while len(partes) < quantidade:
@@ -979,18 +828,12 @@ def dividir_texto(
 
 
 # ============================================================
-# CRIAR LEGENDAS
+# CRIAR TEMPOS DAS LEGENDAS
 # ============================================================
 
-def criar_legenda_pngs(
-    texto,
-    pasta
+def criar_tempos_legendas(
+    texto
 ):
-
-    os.makedirs(
-        pasta,
-        exist_ok=True
-    )
 
     partes = dividir_texto(
         texto,
@@ -999,10 +842,10 @@ def criar_legenda_pngs(
 
     tamanhos = [
         max(
-            len(x),
+            len(parte),
             1
         )
-        for x in partes
+        for parte in partes
     ]
 
     total = sum(
@@ -1013,14 +856,15 @@ def criar_legenda_pngs(
 
     tempo = 0
 
-    for i, parte in enumerate(
-        partes
+    for parte, tamanho in zip(
+        partes,
+        tamanhos
     ):
 
         duracao = (
             FINAL_DURATION
             *
-            tamanhos[i]
+            tamanho
             /
             total
         )
@@ -1028,30 +872,22 @@ def criar_legenda_pngs(
         inicio = tempo
 
         fim = (
-            tempo +
+            tempo
+            +
             duracao
-        )
-
-        arquivo = os.path.join(
-            pasta,
-            f"legenda_{i}.png"
-        )
-
-        criar_imagem_legenda(
-            parte,
-            arquivo
         )
 
         legendas.append(
             {
-                "arquivo": arquivo,
+                "texto": parte,
                 "inicio": inicio,
                 "fim": fim
             }
         )
 
         print(
-            f"[LEGENDA {i + 1}/8]"
+            f"[LEGENDA "
+            f"{len(legendas)}/8]"
         )
 
         print(
@@ -1066,123 +902,134 @@ def criar_legenda_pngs(
 
 
 # ============================================================
-# ADICIONAR ÁUDIO
+# ESCAPAR TEXTO PARA DRAWTEXT
 # ============================================================
 
-def adicionar_audio(
-    video,
-    audio,
-    saida
+def escapar_drawtext(
+    texto
 ):
 
-    comando = [
-
-        FFMPEG,
-
-        "-hide_banner",
-        "-loglevel", "error",
-        "-y",
-
-        "-i",
-        video,
-
-        "-i",
-        audio,
-
-        "-map",
-        "0:v:0",
-
-        "-map",
-        "1:a:0",
-
-        "-c:v",
-        "copy",
-
-        "-c:a",
-        "aac",
-
-        "-b:a",
-        "128k",
-
-        "-t",
-        str(FINAL_DURATION),
-
-        saida
-    ]
-
-    executar_ffmpeg(
-        comando
+    texto = texto.replace(
+        "\\",
+        "\\\\"
     )
 
+    texto = texto.replace(
+        "'",
+        "\\'"
+    )
+
+    texto = texto.replace(
+        ":",
+        "\\:"
+    )
+
+    texto = texto.replace(
+        "%",
+        "\\%"
+    )
+
+    texto = texto.replace(
+        "[",
+        "\\["
+    )
+
+    texto = texto.replace(
+        "]",
+        "\\]"
+    )
+
+    texto = texto.replace(
+        "\n",
+        "\\n"
+    )
+
+    return texto
+
 
 # ============================================================
-# APLICAR LEGENDAS + UPSCALE
-# UMA ÚNICA VEZ
+# APLICAR TUDO
+#
+# SEM PNG
+# SEM 8 ENTRADAS
+# SEM OVERLAY
 # ============================================================
 
-def aplicar_todas_legendas(
-    video_entrada,
+def aplicar_video_final(
+    video,
+    audio,
     legendas,
     saida
 ):
 
     print(
-        "\n[APLICANDO LEGENDAS + UPSCALE]"
+        "\n[RENDER FINAL]"
     )
 
     filtros = []
 
-    # Vídeo base
+    # ========================================================
+    # VÍDEO BASE
+    # ========================================================
+
     filtros.append(
-        "[0:v]setpts=PTS-STARTPTS[base0]"
+        "[0:v]"
+        "setpts=PTS-STARTPTS"
+        "[base]"
     )
 
-    atual = "base0"
+    atual = "base"
+
+    # ========================================================
+    # LEGENDAS COM DRAWTEXT
+    # ========================================================
 
     for i, legenda in enumerate(
         legendas
     ):
 
-        indice = i + 1
+        texto = escapar_drawtext(
+            legenda["texto"]
+        )
 
-        nome_legenda = (
+        saida_filtro = (
             f"leg{i}"
         )
 
-        nome_saida = (
-            f"base{i + 1}"
-        )
-
-        # PNG já está em 540x960
-        filtros.append(
-            f"[{indice}:v]"
-            "format=rgba,"
-            "setpts=PTS-STARTPTS,"
-            f"trim=duration={FINAL_DURATION},"
-            "setpts=PTS-STARTPTS"
-            f"[{nome_legenda}]"
-        )
-
-        filtros.append(
+        filtro = (
             f"[{atual}]"
-            f"[{nome_legenda}]"
-            "overlay=0:0:"
-            "eof_action=repeat:"
-            "shortest=0:"
+            "drawtext="
+            f"text='{texto}':"
+            "fontcolor=white:"
+            "fontsize=30:"
+            "fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            "x=(w-text_w)/2:"
+            "y=h*0.70:"
+            "line_spacing=8:"
+            "box=1:"
+            "boxcolor=black@0.68:"
+            "boxborderw=18:"
             f"enable='between(t,"
             f"{legenda['inicio']:.3f},"
             f"{legenda['fim']:.3f})'"
-            f"[{nome_saida}]"
+            f"[{saida_filtro}]"
         )
 
-        atual = nome_saida
+        filtros.append(
+            filtro
+        )
 
-    # Depois das legendas:
-    # upscale 540x960 -> 1080x1920
+        atual = saida_filtro
+
+    # ========================================================
+    # UPSCALE FINAL
+    # ========================================================
+
     filtros.append(
         f"[{atual}]"
         f"scale={WIDTH}:{HEIGHT}:"
-        "flags=fast_bilinear"
+        "flags=fast_bilinear,"
+        "format=yuv420p"
         "[final]"
     )
 
@@ -1199,67 +1046,49 @@ def aplicar_todas_legendas(
         "-y",
 
         "-i",
-        video_entrada
+        video,
+
+        "-i",
+        audio,
+
+        "-filter_complex",
+        filtro_final,
+
+        "-map",
+        "[final]",
+
+        "-map",
+        "1:a:0",
+
+        "-c:v",
+        "libx264",
+
+        "-preset",
+        "ultrafast",
+
+        "-crf",
+        "31",
+
+        "-pix_fmt",
+        "yuv420p",
+
+        "-r",
+        str(FPS),
+
+        "-c:a",
+        "aac",
+
+        "-b:a",
+        "128k",
+
+        "-t",
+        str(FINAL_DURATION),
+
+        "-movflags",
+        "+faststart",
+
+        saida
     ]
-
-    # Entradas das legendas
-    for legenda in legendas:
-
-        comando.extend(
-            [
-                "-loop",
-                "1",
-
-                "-framerate",
-                str(FPS),
-
-                "-i",
-                legenda["arquivo"]
-            ]
-        )
-
-    comando.extend(
-        [
-
-            "-filter_complex",
-            filtro_final,
-
-            "-map",
-            "[final]",
-
-            "-map",
-            "0:a?",
-
-            "-c:v",
-            "libx264",
-
-            "-preset",
-            "ultrafast",
-
-            "-crf",
-            "30",
-
-            "-pix_fmt",
-            "yuv420p",
-
-            "-r",
-            str(FPS),
-
-            "-c:a",
-            "aac",
-
-            "-b:a",
-            "128k",
-
-            "-t",
-            str(FINAL_DURATION),
-
-            "-movflags",
-            "+faststart",
-
-            saida
-        ]
-    )
 
     executar_ffmpeg(
         comando
@@ -1267,7 +1096,7 @@ def aplicar_todas_legendas(
 
 
 # ============================================================
-# LIMPAR
+# APAGAR ARQUIVO
 # ============================================================
 
 def apagar_arquivo(
@@ -1279,7 +1108,9 @@ def apagar_arquivo(
         if (
             caminho
             and
-            os.path.exists(caminho)
+            os.path.exists(
+                caminho
+            )
         ):
 
             os.remove(
@@ -1289,7 +1120,7 @@ def apagar_arquivo(
     except Exception as erro:
 
         print(
-            "[AVISO] Erro ao apagar:",
+            "[AVISO LIMPEZA]",
             erro
         )
 
@@ -1305,7 +1136,7 @@ def criar_video(
     if not PEXELS_API_KEY:
 
         raise RuntimeError(
-            "Configure PEXELS_API_KEY."
+            "Configure PEXELS_API_KEY no Railway."
         )
 
     trabalho = os.path.join(
@@ -1328,7 +1159,7 @@ def criar_video(
         )
 
         # ====================================================
-        # 1. BAIXAR + PROCESSAR 4 CLIPES
+        # 4 CLIPES
         # ====================================================
 
         for i in range(
@@ -1347,7 +1178,8 @@ def criar_video(
             if not url:
 
                 raise RuntimeError(
-                    "Não foi encontrado vídeo."
+                    "Não foi encontrado vídeo "
+                    f"para {destino}."
                 )
 
             original = os.path.join(
@@ -1384,7 +1216,7 @@ def criar_video(
             )
 
         # ====================================================
-        # 2. CONCATENAR
+        # CONCAT
         # ====================================================
 
         video_concat = os.path.join(
@@ -1401,7 +1233,6 @@ def criar_video(
             video_concat
         )
 
-        # Liberar clipes
         for clipe in clipes:
 
             apagar_arquivo(
@@ -1409,7 +1240,7 @@ def criar_video(
             )
 
         # ====================================================
-        # 3. ROTEIRO
+        # ROTEIRO
         # ====================================================
 
         roteiro = criar_roteiro(
@@ -1425,7 +1256,7 @@ def criar_video(
         )
 
         # ====================================================
-        # 4. NARRAÇÃO
+        # ÁUDIO
         # ====================================================
 
         audio = os.path.join(
@@ -1443,44 +1274,15 @@ def criar_video(
         )
 
         # ====================================================
-        # 5. LEGENDAS
+        # TEMPOS DAS LEGENDAS
         # ====================================================
 
-        pasta_legendas = os.path.join(
-            trabalho,
-            "legendas"
-        )
-
-        legendas = criar_legenda_pngs(
-            roteiro,
-            pasta_legendas
+        legendas = criar_tempos_legendas(
+            roteiro
         )
 
         # ====================================================
-        # 6. VÍDEO COM ÁUDIO
-        # ====================================================
-
-        video_audio = os.path.join(
-            trabalho,
-            "video_audio.mp4"
-        )
-
-        print(
-            "\n[ADICIONANDO ÁUDIO]"
-        )
-
-        adicionar_audio(
-            video_concat,
-            audio,
-            video_audio
-        )
-
-        apagar_arquivo(
-            video_concat
-        )
-
-        # ====================================================
-        # 7. SAÍDA FINAL
+        # SAÍDA
         # ====================================================
 
         nome_saida = (
@@ -1497,11 +1299,12 @@ def criar_video(
         )
 
         # ====================================================
-        # 8. UMA ÚNICA ENCODAGEM PESADA
+        # RENDER FINAL
         # ====================================================
 
-        aplicar_todas_legendas(
-            video_audio,
+        aplicar_video_final(
+            video_concat,
+            audio,
             legendas,
             saida
         )
@@ -1529,7 +1332,7 @@ def criar_video(
             )
 
         print(
-            "\n=================================="
+            "\n===================================="
         )
 
         print(
@@ -1550,7 +1353,7 @@ def criar_video(
         )
 
         print(
-            "=================================="
+            "===================================="
         )
 
         return saida
@@ -1614,17 +1417,21 @@ def index():
                 nome
             )
 
-        except Exception as e:
+        except Exception as erro_real:
 
             print(
                 "\n[ERRO GERAL]"
             )
 
             print(
-                repr(e)
+                repr(
+                    erro_real
+                )
             )
 
-            erro = str(e)
+            erro = str(
+                erro_real
+            )
 
     return render_template_string(
         HTML,
