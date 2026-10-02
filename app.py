@@ -1,50 +1,66 @@
 import os
-import re
-import uuid
 import random
+import uuid
 import shutil
-import subprocess
 import requests
+import subprocess
+import imageio_ffmpeg
 
 from flask import Flask, request, render_template_string, send_file
 
 
 # ============================================================
-# CONFIGURAÇÕES
+# APP
 # ============================================================
 
 app = Flask(__name__)
 
 PORT = int(os.getenv("PORT", "8080"))
 
-# Processamento intermediário
+PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
+
+
+# ============================================================
+# CONFIGURAÇÕES
+# ============================================================
+
+WIDTH = 1080
+HEIGHT = 1920
+
 PROCESS_WIDTH = 540
 PROCESS_HEIGHT = 960
 
-# Resolução final
-FINAL_WIDTH = 1080
-FINAL_HEIGHT = 1920
-
 FPS = 24
-
-# ============================================================
-# VÍDEO FINAL
-# ============================================================
 
 DURATION = 60
 
-# 4 vídeos de 15 segundos
 CLIP_COUNT = 4
 CLIP_DURATION = 15
 
-# ============================================================
-# PEXELS
-# ============================================================
-
-PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
 # ============================================================
-# PASTAS
+# FFmpeg
+# ============================================================
+
+try:
+    FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:
+    FFMPEG = shutil.which("ffmpeg")
+
+if not FFMPEG:
+    raise RuntimeError(
+        "FFmpeg não encontrado. Instale imageio-ffmpeg no requirements.txt"
+    )
+
+
+print("=" * 70)
+print("[FFMPEG ENCONTRADO]")
+print(FFMPEG)
+print("=" * 70)
+
+
+# ============================================================
+# DIRETÓRIOS
 # ============================================================
 
 VIDEO_DIR = "videos"
@@ -57,231 +73,192 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 # ============================================================
-# FFMPEG
-# ============================================================
-
-FFMPEG = shutil.which("ffmpeg")
-
-if not FFMPEG:
-    FFMPEG = "/usr/bin/ffmpeg"
-
-
-# ============================================================
-# PAÍSES / BUSCAS
+# PAÍSES / LOCAIS
 # ============================================================
 
 PAISES = {
 
     "Brasil": [
-        "Brazil mountains lake",
-        "Brazil sea cliffs",
-        "Brazil mountain cabin",
-        "Brazil mountain valley",
-        "Brazil scenic mountains",
-        "Brazil mountain lake",
-        "Brazil lake mountains",
-        "Brazil ocean cliffs",
-        "Brazil waterfall mountains",
-        "Brazil scenic nature",
+        "Brazil waterfall nature landscape",
+        "Brazil mountains nature",
+        "Brazil lake landscape",
+        "Brazil river nature",
+        "Brazil rainforest waterfall",
+        "Brazil beautiful landscape"
     ],
 
     "Ilhas Faroé": [
-        "Faroe Islands mountains ocean",
-        "Faroe Islands cliffs",
+        "Faroe Islands mountains waterfall",
+        "Faroe Islands landscape",
+        "Faroe Islands cliffs nature",
         "Faroe Islands lake mountains",
-        "Faroe Islands green valley",
-        "Faroe Islands scenic landscape",
-        "Faroe Islands waterfall mountains",
-        "Faroe Islands nature",
+        "Faroe Islands waterfall",
+        "Faroe Islands scenic landscape"
     ],
 
     "Suíça": [
-        "Switzerland mountains lake",
-        "Swiss Alps lake",
+        "Switzerland Alps mountains lake",
+        "Swiss Alps waterfall",
         "Switzerland mountain cabin",
-        "Swiss mountain valley",
-        "Swiss Alps chalet",
-        "Switzerland green valley",
-        "Swiss lake mountains",
-        "Swiss Alps nature",
-        "Swiss waterfall mountains",
+        "Switzerland alpine lake",
+        "Swiss mountain landscape",
+        "Switzerland winter mountains"
     ],
 
     "Noruega": [
         "Norway fjord mountains",
-        "Norway mountain lake",
-        "Norway cliffs ocean",
-        "Norway green valley",
-        "Norway mountain cabin",
-        "Norwegian fjord landscape",
         "Norway waterfall mountains",
-        "Norway scenic nature",
+        "Norway scenic landscape",
+        "Norway lake mountains",
+        "Norway winter landscape",
+        "Norwegian fjord nature"
     ],
 
     "Islândia": [
-        "Iceland mountains waterfall",
-        "Iceland lake mountains",
-        "Iceland cliffs ocean",
-        "Iceland green valley",
-        "Iceland scenic landscape",
-        "Iceland waterfall mountains",
-        "Iceland nature landscape",
+        "Iceland waterfall landscape",
+        "Iceland mountains nature",
+        "Iceland black beach landscape",
+        "Iceland glacier mountains",
+        "Iceland lake waterfall",
+        "Iceland scenic nature"
     ],
 
     "Canadá": [
-        "Canada Rocky Mountains lake",
-        "Canada mountain lake",
-        "Canada mountain cabin",
-        "Canada green valley",
+        "Canada mountains lake",
+        "Canada waterfall nature",
         "Canadian Rockies landscape",
-        "Canada turquoise lake mountains",
-        "Canada waterfall mountains",
-        "Canada scenic nature",
+        "Canada forest lake",
+        "Canada winter mountains",
+        "Canada scenic landscape"
     ],
 
     "Nova Zelândia": [
         "New Zealand mountains lake",
-        "New Zealand mountain valley",
-        "New Zealand mountain cabin",
-        "New Zealand green valley",
-        "New Zealand lake mountains",
-        "New Zealand scenic landscape",
         "New Zealand waterfall",
+        "New Zealand nature landscape",
+        "New Zealand fjord mountains",
+        "New Zealand alpine lake",
+        "New Zealand scenic landscape"
     ],
 
     "Áustria": [
         "Austria Alps lake",
-        "Austria mountain cabin",
-        "Austria mountain valley",
-        "Austrian Alps landscape",
-        "Austria green valley",
-        "Austria lake mountains",
+        "Austria mountain village nature",
         "Austria waterfall mountains",
+        "Austrian Alps landscape",
+        "Austria winter mountains",
+        "Austria mountain lake"
     ],
 
     "Eslovênia": [
-        "Slovenia mountains lake",
         "Slovenia Lake Bled mountains",
-        "Slovenia mountain valley",
-        "Slovenia green valley",
-        "Slovenia mountain waterfall",
-        "Slovenia scenic nature",
+        "Slovenia waterfall nature",
+        "Slovenia alpine lake",
+        "Slovenia mountains landscape",
+        "Slovenia forest waterfall",
+        "Slovenia scenic nature"
     ],
 
     "França": [
+        "French Alps mountains",
+        "France waterfall mountains",
         "French Alps lake",
-        "France mountain valley",
-        "French Alps cabin",
-        "France mountain lake",
-        "French Alps landscape",
-        "French Alps waterfall",
+        "France nature landscape",
+        "French mountain lake",
+        "French Alps winter"
     ],
 
     "Itália": [
-        "Italian Alps lake",
-        "Dolomites lake mountains",
-        "Dolomites mountain cabin",
-        "Italy green mountain valley",
-        "Dolomites landscape",
-        "Dolomites waterfall",
+        "Italian Alps mountains",
+        "Dolomites Italy landscape",
+        "Italy mountain lake",
+        "Italy waterfall nature",
+        "Dolomites lake",
+        "Italian Alps scenic"
     ],
 
     "Estados Unidos": [
-        "USA mountain lake",
+        "USA mountain lake nature",
+        "Yosemite waterfall landscape",
         "Rocky Mountains lake",
-        "USA mountain cabin",
-        "USA mountain valley",
-        "Yosemite mountains lake",
         "Alaska mountains lake",
-        "USA waterfall mountains",
-        "USA scenic nature",
+        "USA waterfall nature",
+        "American mountains landscape"
     ],
 
     "Japão": [
-        "Japan mountain lake",
-        "Japan mountain valley",
-        "Japan scenic mountains",
+        "Japan mountain waterfall",
         "Japan lake mountains",
-        "Japan green valley",
-        "Japan waterfall mountains",
+        "Japan nature landscape",
+        "Japan forest waterfall",
+        "Japanese mountains",
+        "Japan scenic nature"
     ],
 
     "Peru": [
         "Peru Andes mountains lake",
-        "Peru mountain valley",
-        "Peru green mountains",
-        "Peru scenic mountain lake",
-        "Peru waterfall mountains",
+        "Peru mountain landscape",
+        "Peru waterfall nature",
+        "Peruvian Andes landscape",
+        "Peru lake mountains",
+        "Peru scenic nature"
     ],
 
     "Chile": [
-        "Chile Patagonia mountains lake",
+        "Chile Patagonia mountains",
+        "Chile waterfall nature",
         "Chile mountain lake",
-        "Patagonia mountains",
-        "Chile green valley",
-        "Chile scenic landscape",
-        "Chile waterfall mountains",
+        "Patagonia landscape",
+        "Chile Andes mountains",
+        "Chile scenic landscape"
     ],
 
     "Argentina": [
-        "Argentina Patagonia mountains lake",
+        "Argentina Patagonia mountains",
+        "Argentina waterfall nature",
         "Argentina mountain lake",
-        "Patagonia mountain valley",
-        "Argentina green valley",
-        "Argentina scenic mountains",
-        "Argentina waterfall mountains",
-    ],
+        "Patagonia lake landscape",
+        "Argentina Andes mountains",
+        "Argentina scenic nature"
+    ]
 }
 
 
 # ============================================================
-# PALAVRAS QUE QUEREMOS EVITAR
+# PALAVRAS PARA EVITAR
 # ============================================================
 
 PALAVRAS_RUINS = [
-    "person",
     "people",
+    "person",
     "man",
     "woman",
-    "men",
-    "women",
-
+    "girl",
+    "boy",
     "hiker",
     "hiking",
-    "trail",
-    "trekking",
-    "trek",
-    "walking",
-    "walk",
-
-    "runner",
-    "running",
-
-    "road",
-    "street",
-    "highway",
+    "tourist",
+    "crowd",
     "car",
+    "cars",
     "vehicle",
-
+    "road",
+    "highway",
     "city",
-    "urban",
+    "street",
     "building",
     "house",
     "hotel",
-
+    "resort",
+    "airport",
+    "train",
     "boat",
     "ship",
-    "yacht",
-
-    "pool",
-    "swimming",
-
     "event",
     "festival",
     "concert",
-    "party",
-    "crowd",
-    "airport",
+    "restaurant",
+    "urban"
 ]
 
 
@@ -291,26 +268,29 @@ PALAVRAS_RUINS = [
 
 HTML = """
 <!DOCTYPE html>
-
-<html lang="pt-br">
+<html lang="pt-BR">
 
 <head>
 
 <meta charset="UTF-8">
 
 <meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+content="width=device-width, initial-scale=1.0">
 
 <title>Mundo Afora</title>
 
 <style>
 
+* {
+    box-sizing: border-box;
+}
+
 body {
-    font-family: Arial, sans-serif;
-    background: #111;
-    color: white;
     margin: 0;
     padding: 20px;
+    background: #101010;
+    color: white;
+    font-family: Arial, sans-serif;
 }
 
 .container {
@@ -320,19 +300,19 @@ body {
 
 h1 {
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 8px;
 }
 
-.card {
-    background: #1c1c1c;
-    padding: 20px;
-    border-radius: 15px;
+.sub {
+    text-align: center;
+    color: #aaa;
+    margin-bottom: 25px;
 }
 
 label {
     display: block;
     margin-top: 15px;
-    margin-bottom: 7px;
+    margin-bottom: 6px;
 }
 
 select,
@@ -345,25 +325,24 @@ button {
 }
 
 select {
-    background: #292929;
+    background: #202020;
     color: white;
 }
 
 button {
     margin-top: 25px;
-    background: #fff;
-    color: #111;
+    background: #ffffff;
+    color: #000;
     font-weight: bold;
     cursor: pointer;
 }
 
 .info {
-    margin-top: 20px;
+    margin-top: 25px;
     padding: 15px;
-    background: #222;
+    background: #1c1c1c;
     border-radius: 10px;
-    font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
 </style>
@@ -376,13 +355,15 @@ button {
 
 <h1>🌎 Mundo Afora</h1>
 
-<div class="card">
+<div class="sub">
+Paisagens incríveis pelo mundo
+</div>
 
 <form method="POST">
 
-<label>País</label>
+<label>Escolha o país</label>
 
-<select name="pais">
+<select name="pais" required>
 
 {% for pais in paises %}
 
@@ -395,25 +376,23 @@ button {
 </select>
 
 <button type="submit">
-GERAR VÍDEO
+🎬 GERAR VÍDEO
 </button>
 
 </form>
 
 <div class="info">
 
-Vídeo vertical 1080×1920<br>
-60 segundos<br>
-24 FPS<br>
-4 clipes de 15 segundos<br>
-Paisagens reais<br>
-Sem música<br>
-Sem áudio<br>
-Sem narração<br>
-Sem pessoas<br>
-Sem marca d'água
+<b>Configuração:</b><br>
 
-</div>
+🎥 4 clipes<br>
+⏱️ 15 segundos cada<br>
+📱 1080 × 1920<br>
+🚫 Sem pessoas<br>
+🚫 Sem áudio<br>
+🚫 Sem música<br>
+🚫 Sem narração<br>
+🚫 Sem marca-d'água
 
 </div>
 
@@ -426,57 +405,14 @@ Sem marca d'água
 
 
 # ============================================================
-# UTILIDADES
-# ============================================================
-
-def limpar_nome(texto):
-
-    texto = re.sub(
-        r"[^a-zA-Z0-9_-]",
-        "_",
-        texto
-    )
-
-    return texto[:80]
-
-
-def rodar_ffmpeg(comando):
-
-    print("=" * 70)
-    print("[FFMPEG]")
-    print(" ".join(str(x) for x in comando))
-    print("=" * 70)
-
-    resultado = subprocess.run(
-        comando,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
-
-    print(
-        "[RETURN CODE]",
-        resultado.returncode
-    )
-
-    if resultado.stderr:
-        print(
-            resultado.stderr[-5000:]
-        )
-
-    return resultado
-
-
-# ============================================================
-# BUSCAR PEXELS
+# BUSCAR VÍDEOS NO PEXELS
 # ============================================================
 
 def buscar_videos(query):
 
     if not PEXELS_API_KEY:
-
         raise Exception(
-            "PEXELS_API_KEY não configurada."
+            "PEXELS_API_KEY não configurada no Railway."
         )
 
     url = "https://api.pexels.com/videos/search"
@@ -487,118 +423,133 @@ def buscar_videos(query):
 
     params = {
         "query": query,
-        "orientation": "portrait",
+
+        # Não obrigamos portrait.
+        # Assim também aceitamos vídeos horizontais.
         "size": "large",
+
         "per_page": 80,
+
+        "page": random.randint(1, 5)
     }
 
-    print(
-        "[PEXELS BUSCA]",
-        query
-    )
+    try:
 
-    resposta = requests.get(
-        url,
-        headers=headers,
-        params=params,
-        timeout=30
-    )
+        resposta = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=30
+        )
 
-    resposta.raise_for_status()
+        print("[PEXELS STATUS]", resposta.status_code)
 
-    dados = resposta.json()
+        if resposta.status_code != 200:
 
-    return dados.get(
-        "videos",
-        []
-    )
+            print(
+                "[PEXELS ERRO]",
+                resposta.text[:500]
+            )
+
+            return []
+
+        dados = resposta.json()
+
+        videos = dados.get("videos", [])
+
+        print(
+            "[PEXELS]",
+            len(videos),
+            "vídeos encontrados"
+        )
+
+        return videos
+
+    except Exception as e:
+
+        print(
+            "[ERRO PEXELS]",
+            repr(e)
+        )
+
+        return []
 
 
 # ============================================================
-# ESCOLHER ARQUIVO DO PEXELS
+# ESCOLHER ARQUIVO DO VÍDEO
 # ============================================================
 
 def escolher_arquivo_video(video):
 
-    arquivos = video.get(
-        "video_files",
-        []
-    )
+    arquivos = video.get("video_files", [])
 
     candidatos = []
 
     for arquivo in arquivos:
 
-        link = arquivo.get(
-            "link"
-        )
-
-        largura = arquivo.get(
-            "width",
-            0
-        )
-
-        altura = arquivo.get(
-            "height",
-            0
-        )
-
-        tipo = arquivo.get(
-            "file_type",
-            ""
-        )
+        link = arquivo.get("link")
 
         if not link:
             continue
 
-        if (
-            tipo
-            and tipo.lower()
-            != "video/mp4"
-        ):
+        tipo = str(
+            arquivo.get("file_type", "")
+        ).lower()
+
+        if tipo and "mp4" not in tipo:
             continue
 
-        if (
-            largura <= 0
-            or altura <= 0
-        ):
+        largura = int(
+            arquivo.get("width") or 0
+        )
+
+        altura = int(
+            arquivo.get("height") or 0
+        )
+
+        tamanho = int(
+            arquivo.get("file_size") or 0
+        )
+
+        if largura <= 0 or altura <= 0:
             continue
 
-        # ACEITA:
-        # vertical
-        # horizontal
-        # quadrado
-        #
-        # O FFmpeg fará o crop depois.
+        # Precisamos de uma resolução razoável.
+        if largura < 540 and altura < 540:
+            continue
 
         candidatos.append({
             "link": link,
             "width": largura,
             "height": altura,
-            "size": arquivo.get(
-                "file_size"
-            ) or 0
+            "size": tamanho
         })
 
     if not candidatos:
-
         return None
 
-    # Preferência por resolução próxima de 1080x1920
-    candidatos.sort(
-        key=lambda x: (
-            abs(
-                x["width"]
-                - FINAL_WIDTH
-            )
-            +
-            abs(
-                x["height"]
-                - FINAL_HEIGHT
-            ),
+    # Preferimos arquivos que não sejam gigantes.
+    def pontuacao(item):
 
-            x["size"] or 0
-        )
+        largura = item["width"]
+        altura = item["height"]
+
+        pixels = largura * altura
+
+        # Quanto mais próximo de 720p/1080p,
+        # melhor para processamento.
+        diferenca = abs(pixels - (1280 * 720))
+
+        # Penaliza arquivos enormes.
+        penalidade = 0
+
+        if pixels > 1920 * 1080:
+            penalidade += 5000000
+
+        return diferenca + penalidade
+
+    candidatos.sort(
+        key=pontuacao
     )
 
     return candidatos[0]
@@ -608,114 +559,85 @@ def escolher_arquivo_video(video):
 # SELECIONAR VÍDEOS
 # ============================================================
 
-def selecionar_videos(
-    consultas
-):
+def selecionar_videos(pais):
 
-    encontrados = {}
+    queries = PAISES.get(
+        pais,
+        ["beautiful nature landscape"]
+    )
 
-    for consulta in consultas:
+    todos = []
 
-        try:
+    consultas = queries[:]
 
-            videos = buscar_videos(
-                consulta
-            )
+    random.shuffle(consultas)
 
-        except Exception as erro:
+    # Fazemos várias consultas para aumentar
+    # a chance de encontrar vídeos válidos.
+    for query in consultas[:4]:
 
-            print(
-                "[ERRO PEXELS]",
-                erro
-            )
+        print()
+        print(
+            "[BUSCANDO]",
+            query
+        )
 
-            continue
+        videos = buscar_videos(query)
 
         for video in videos:
 
-            video_id = video.get(
-                "id"
-            )
-
-            if not video_id:
-                continue
-
-            if video_id in encontrados:
-                continue
-
-            texto = (
-                str(
-                    video.get(
-                        "url",
-                        ""
-                    )
-                )
-                + " "
-                + str(
-                    video.get(
-                        "user",
-                        {}
-                    ).get(
-                        "name",
-                        ""
-                    )
-                )
-                + " "
-                + str(
-                    video.get(
-                        "alt",
-                        ""
-                    )
-                )
+            titulo = str(
+                video.get("url", "")
             ).lower()
 
-            pontos_ruins = 0
+            # Alguns vídeos podem trazer texto
+            # desnecessário na URL.
+            ruim = 0
 
             for palavra in PALAVRAS_RUINS:
 
-                if palavra in texto:
-
-                    pontos_ruins += 1
+                if palavra in titulo:
+                    ruim += 1
 
             arquivo = escolher_arquivo_video(
                 video
             )
 
             if not arquivo:
-
                 continue
 
-            encontrados[
-                video_id
-            ] = {
-                "id": video_id,
+            todos.append({
+                "video": video,
                 "arquivo": arquivo,
-                "score": pontos_ruins,
-            }
+                "ruim": ruim
+            })
 
-    lista = list(
-        encontrados.values()
+    # Ordena primeiro pelos menos problemáticos.
+    todos.sort(
+        key=lambda x: x["ruim"]
     )
 
-    # Primeiro os que têm menos palavras ruins
-    lista.sort(
-        key=lambda x: x["score"]
-    )
+    # Remove duplicados.
+    resultado = []
 
-    # Mantemos mais candidatos para aumentar
-    # a chance de conseguir os 4 clipes.
-    lista = lista[:60]
+    links_usados = set()
 
-    random.shuffle(
-        lista
-    )
+    for item in todos:
 
-    print(
-        "[CANDIDATOS ENCONTRADOS]",
-        len(lista)
-    )
+        link = item["arquivo"]["link"]
 
-    return lista
+        if link in links_usados:
+            continue
+
+        links_usados.add(link)
+
+        resultado.append(item)
+
+    random.shuffle(resultado)
+
+    # Mantemos uma quantidade maior de candidatos
+    # para que vídeos que falhem sejam substituídos.
+    return resultado[:60]
 
 
 # ============================================================
@@ -723,6 +645,10 @@ def selecionar_videos(
 # ============================================================
 
 def baixar_video(item):
+
+    arquivo = item["arquivo"]
+
+    link = arquivo["link"]
 
     nome = (
         str(uuid.uuid4())
@@ -734,66 +660,136 @@ def baixar_video(item):
         nome
     )
 
-    link = item[
-        "arquivo"
-    ]["link"]
-
     print(
         "[DOWNLOAD]",
-        item["id"],
-        item["arquivo"]["width"],
+        arquivo["width"],
         "x",
-        item["arquivo"]["height"]
+        arquivo["height"]
     )
 
-    resposta = requests.get(
-        link,
-        stream=True,
-        timeout=90
-    )
+    headers = {
+        "User-Agent":
+        "Mozilla/5.0"
+    }
 
-    resposta.raise_for_status()
+    try:
 
-    tamanho = 0
+        resposta = requests.get(
+            link,
+            headers=headers,
+            stream=True,
+            timeout=90
+        )
 
-    with open(
-        caminho,
-        "wb"
-    ) as arquivo:
+        resposta.raise_for_status()
 
-        for bloco in resposta.iter_content(
-            chunk_size=1024 * 1024
-        ):
+        tamanho = 0
 
-            if bloco:
+        with open(
+            caminho,
+            "wb"
+        ) as f:
 
-                arquivo.write(
-                    bloco
-                )
+            for bloco in resposta.iter_content(
+                chunk_size=1024 * 1024
+            ):
 
-                tamanho += len(
-                    bloco
-                )
+                if bloco:
+
+                    f.write(bloco)
+
+                    tamanho += len(bloco)
+
+        print(
+            "[OK DOWNLOAD]",
+            round(
+                tamanho / 1024 / 1024,
+                2
+            ),
+            "MB"
+        )
+
+        # Arquivo muito pequeno provavelmente
+        # não é um vídeo válido.
+        if tamanho < 10000:
+
+            print(
+                "[DOWNLOAD INVALIDO]"
+            )
+
+            try:
+                os.remove(caminho)
+            except:
+                pass
+
+            return None
+
+        return caminho
+
+    except Exception as e:
+
+        print(
+            "[ERRO DOWNLOAD]",
+            repr(e)
+        )
+
+        try:
+            os.remove(caminho)
+        except:
+            pass
+
+        return None
+
+
+# ============================================================
+# EXECUTAR FFMPEG
+# ============================================================
+
+def executar_ffmpeg(comando):
+
+    print("=" * 70)
+
+    print("[FFMPEG]")
 
     print(
-        "[OK DOWNLOAD]",
-        round(
-            tamanho / 1024 / 1024,
-            2
-        ),
-        "MB"
+        " ".join(
+            str(x)
+            for x in comando
+        )
     )
 
-    return caminho
+    print("=" * 70)
+
+    resultado = subprocess.run(
+        comando,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    if resultado.returncode != 0:
+
+        print(
+            "[FFMPEG ERRO]"
+        )
+
+        print(
+            resultado.stderr[-4000:]
+        )
+
+        raise RuntimeError(
+            "FFmpeg retornou código "
+            + str(resultado.returncode)
+        )
+
+    return resultado
 
 
 # ============================================================
-# VALIDAR VÍDEO
+# VERIFICAR VÍDEO
 # ============================================================
 
-def verificar_video(
-    caminho
-):
+def verificar_video(caminho):
 
     comando = [
         FFMPEG,
@@ -810,14 +806,22 @@ def verificar_video(
         "-"
     ]
 
-    resultado = rodar_ffmpeg(
-        comando
-    )
+    try:
 
-    return (
-        resultado.returncode
-        == 0
-    )
+        executar_ffmpeg(
+            comando
+        )
+
+        return True
+
+    except Exception as e:
+
+        print(
+            "[VÍDEO INVÁLIDO]",
+            repr(e)
+        )
+
+        return False
 
 
 # ============================================================
@@ -826,241 +830,39 @@ def verificar_video(
 
 def processar_clipe(
     entrada,
-    saida,
-    duracao=CLIP_DURATION
+    numero
 ):
 
-    print(
-        "[PROCESSANDO CLIPE]"
-    )
-
-    # ========================================================
-    # IMPORTANTE:
-    #
-    # -an = remove completamente o áudio
-    #
-    # Assim nenhum vídeo baixado do Pexels
-    # leva trilha ou som para o resultado.
-    # ========================================================
-
-    comando = [
-        FFMPEG,
-
-        "-y",
-
-        "-hide_banner",
-
-        "-loglevel",
-        "error",
-
-        "-threads",
-        "1",
-
-        "-i",
-        entrada,
-
-        "-t",
-        str(duracao),
-
-        "-vf",
-        (
-            "scale=540:960:"
-            "force_original_aspect_ratio=increase,"
-            "crop=540:960,"
-            "fps=24,"
-            "setsar=1"
-        ),
-
-        "-an",
-
-        "-c:v",
-        "libx264",
-
-        "-preset",
-        "ultrafast",
-
-        "-crf",
-        "32",
-
-        "-pix_fmt",
-        "yuv420p",
-
-        "-r",
-        "24",
-
-        "-movflags",
-        "+faststart",
-
-        saida
-    ]
-
-    resultado = rodar_ffmpeg(
-        comando
-    )
-
-    if resultado.returncode != 0:
-
-        print(
-            "[ERRO CLIPE]"
-        )
-
-        return False
-
-    if not os.path.exists(
-        saida
-    ):
-
-        return False
-
-    tamanho = os.path.getsize(
-        saida
-    )
-
-    if tamanho < 10000:
-
-        return False
-
-    print(
-        "[CLIPE OK]",
-        round(
-            tamanho / 1024 / 1024,
-            2
-        ),
-        "MB"
-    )
-
-    return True
-
-
-# ============================================================
-# JUNTAR CLIPES
-# ============================================================
-
-def juntar_clipes(
-    clipes,
-    saida
-):
-
-    lista = os.path.join(
+    saida = os.path.join(
         TEMP_DIR,
-        "concat.txt"
+        f"clip_{uuid.uuid4().hex}.mp4"
     )
 
-    with open(
-        lista,
-        "w",
-        encoding="utf-8"
-    ) as arquivo:
-
-        for clipe in clipes:
-
-            caminho = os.path.abspath(
-                clipe
-            )
-
-            caminho = caminho.replace(
-                "'",
-                "'\\''"
-            )
-
-            arquivo.write(
-                "file '"
-                + caminho
-                + "'\n"
-            )
-
-    comando = [
-        FFMPEG,
-
-        "-y",
-
-        "-hide_banner",
-
-        "-loglevel",
-        "error",
-
-        "-f",
-        "concat",
-
-        "-safe",
-        "0",
-
-        "-i",
-        lista,
-
-        "-c",
-        "copy",
-
-        "-an",
-
-        saida
-    ]
-
-    resultado = rodar_ffmpeg(
-        comando
-    )
-
-    if resultado.returncode != 0:
-
-        print(
-            "[ERRO AO JUNTAR]"
-        )
-
-        return False
-
-    if not os.path.exists(
-        saida
-    ):
-
-        return False
-
-    return True
-
-
-# ============================================================
-# FINAL 1080x1920
-# ============================================================
-
-def finalizar_video(
-    entrada,
-    saida
-):
-
-    print(
-        "[FINALIZANDO]"
+    # Crop central para vertical.
+    filtro = (
+        "scale="
+        f"{PROCESS_WIDTH}:"
+        f"{PROCESS_HEIGHT}:"
+        "force_original_aspect_ratio=increase,"
+        f"crop={PROCESS_WIDTH}:"
+        f"{PROCESS_HEIGHT},"
+        f"fps={FPS}"
     )
 
     comando = [
+
         FFMPEG,
 
         "-y",
-
-        "-hide_banner",
-
-        "-loglevel",
-        "error",
-
-        "-threads",
-        "1",
 
         "-i",
         entrada,
 
         "-t",
-        str(DURATION),
+        str(CLIP_DURATION),
 
         "-vf",
-        (
-            "scale=1080:1920:"
-            "force_original_aspect_ratio=increase,"
-            "crop=1080:1920,"
-            "fps=24,"
-            "setsar=1"
-        ),
-
-        # ====================================================
-        # SEM ÁUDIO
-        # ====================================================
+        filtro,
 
         "-an",
 
@@ -1076,8 +878,200 @@ def finalizar_video(
         "-pix_fmt",
         "yuv420p",
 
-        "-r",
-        "24",
+        "-movflags",
+        "+faststart",
+
+        saida
+    ]
+
+    try:
+
+        executar_ffmpeg(
+            comando
+        )
+
+        if not os.path.exists(
+            saida
+        ):
+
+            raise Exception(
+                "Arquivo processado não foi criado."
+            )
+
+        tamanho = os.path.getsize(
+            saida
+        )
+
+        if tamanho < 10000:
+
+            raise Exception(
+                "Arquivo processado ficou muito pequeno."
+            )
+
+        print(
+            "[OK CLIPE]",
+            numero,
+            round(
+                tamanho / 1024 / 1024,
+                2
+            ),
+            "MB"
+        )
+
+        return saida
+
+    except Exception as e:
+
+        print(
+            "[ERRO PROCESSANDO CLIPE]",
+            repr(e)
+        )
+
+        try:
+            os.remove(saida)
+        except:
+            pass
+
+        return None
+
+
+# ============================================================
+# JUNTAR CLIPES
+# ============================================================
+
+def juntar_clipes(
+    clipes,
+    saida
+):
+
+    lista = os.path.join(
+        TEMP_DIR,
+        f"lista_{uuid.uuid4().hex}.txt"
+    )
+
+    try:
+
+        with open(
+            lista,
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+            for clipe in clipes:
+
+                caminho = os.path.abspath(
+                    clipe
+                )
+
+                caminho = caminho.replace(
+                    "'",
+                    "'\\''"
+                )
+
+                f.write(
+                    "file '"
+                    + caminho
+                    + "'\n"
+                )
+
+        comando = [
+
+            FFMPEG,
+
+            "-y",
+
+            "-f",
+            "concat",
+
+            "-safe",
+            "0",
+
+            "-i",
+            lista,
+
+            "-c",
+            "copy",
+
+            "-an",
+
+            saida
+        ]
+
+        executar_ffmpeg(
+            comando
+        )
+
+        if not os.path.exists(
+            saida
+        ):
+
+            raise Exception(
+                "Vídeo final não foi criado."
+            )
+
+        return True
+
+    except Exception as e:
+
+        print(
+            "[ERRO JUNTANDO]",
+            repr(e)
+        )
+
+        return False
+
+    finally:
+
+        try:
+            os.remove(lista)
+        except:
+            pass
+
+
+# ============================================================
+# FINALIZAR VÍDEO
+# ============================================================
+
+def finalizar_video(
+    entrada,
+    saida
+):
+
+    filtro = (
+        "scale="
+        f"{WIDTH}:"
+        f"{HEIGHT}:"
+        "force_original_aspect_ratio=increase,"
+        f"crop={WIDTH}:"
+        f"{HEIGHT},"
+        f"fps={FPS}"
+    )
+
+    comando = [
+
+        FFMPEG,
+
+        "-y",
+
+        "-i",
+        entrada,
+
+        "-vf",
+        filtro,
+
+        "-an",
+
+        "-c:v",
+        "libx264",
+
+        "-preset",
+        "ultrafast",
+
+        "-crf",
+        "29",
+
+        "-pix_fmt",
+        "yuv420p",
 
         "-movflags",
         "+faststart",
@@ -1085,115 +1079,61 @@ def finalizar_video(
         saida
     ]
 
-    resultado = rodar_ffmpeg(
+    executar_ffmpeg(
         comando
     )
-
-    if resultado.returncode != 0:
-
-        print(
-            "[ERRO FINAL]"
-        )
-
-        return False
 
     if not os.path.exists(
         saida
     ):
 
-        return False
+        raise Exception(
+            "Arquivo final não foi criado."
+        )
 
-    tamanho = os.path.getsize(
-        saida
-    )
-
-    print(
-        "[VÍDEO FINAL]",
-        round(
-            tamanho / 1024 / 1024,
-            2
-        ),
-        "MB"
-    )
-
-    return True
+    return saida
 
 
 # ============================================================
-# LIMPAR ARQUIVOS
+# LIMPAR
 # ============================================================
 
-def limpar_temporarios():
+def limpar_arquivos(
+    arquivos
+):
 
-    for pasta in [
-        VIDEO_DIR,
-        TEMP_DIR
-    ]:
+    for arquivo in arquivos:
 
-        if not os.path.exists(
-            pasta
-        ):
+        try:
 
-            os.makedirs(
-                pasta,
-                exist_ok=True
-            )
+            if arquivo and os.path.exists(
+                arquivo
+            ):
 
-            continue
-
-        for nome in os.listdir(
-            pasta
-        ):
-
-            caminho = os.path.join(
-                pasta,
-                nome
-            )
-
-            try:
-
-                if os.path.isfile(
-                    caminho
-                ):
-
-                    os.remove(
-                        caminho
-                    )
-
-            except Exception as erro:
-
-                print(
-                    "[ERRO LIMPEZA]",
-                    erro
+                os.remove(
+                    arquivo
                 )
+
+        except Exception:
+            pass
 
 
 # ============================================================
 # GERAR VÍDEO
 # ============================================================
 
-def gerar_video(
-    pais
-):
+def gerar_video(pais):
 
-    if pais not in PAISES:
-
-        raise Exception(
-            "País inválido."
-        )
-
-    limpar_temporarios()
-
-    consultas = PAISES[
+    print()
+    print("=" * 70)
+    print(
+        "[INICIANDO]",
         pais
-    ].copy()
-
-    random.shuffle(
-        consultas
     )
+    print("=" * 70)
 
     candidatos = selecionar_videos(
-        consultas
+        pais
     )
 
     if not candidatos:
@@ -1204,178 +1144,129 @@ def gerar_video(
 
     clipes = []
 
-    numero = 0
+    originais = []
 
-    # ========================================================
-    # TENTA TODOS OS CANDIDATOS NECESSÁRIOS
-    # ========================================================
+    tentativas = 0
 
-    for item in candidatos:
+    indice = 0
 
-        if len(clipes) >= CLIP_COUNT:
+    # Temos vários candidatos para substituir
+    # aqueles que eventualmente falharem.
+    while len(clipes) < CLIP_COUNT:
+
+        if indice >= len(candidatos):
 
             break
 
-        original = None
+        item = candidatos[indice]
 
-        try:
+        indice += 1
 
-            print(
-                "----------------------------------------"
-            )
+        tentativas += 1
 
-            print(
-                "[TENTANDO VÍDEO]",
-                len(clipes) + 1,
-                "/",
-                CLIP_COUNT
-            )
+        print()
+        print("-" * 70)
 
-            original = baixar_video(
-                item
-            )
+        print(
+            "[TENTANDO VÍDEO]",
+            len(clipes) + 1,
+            "/",
+            CLIP_COUNT
+        )
 
-            # =================================================
-            # VALIDAÇÃO
-            # =================================================
+        caminho = baixar_video(
+            item
+        )
 
-            if not verificar_video(
-                original
-            ):
-
-                print(
-                    "[PULAR] Vídeo inválido."
-                )
-
-                try:
-
-                    os.remove(
-                        original
-                    )
-
-                except Exception:
-
-                    pass
-
-                original = None
-
-                continue
-
-            # =================================================
-            # PROCESSAMENTO
-            # =================================================
-
-            saida_clipe = os.path.join(
-                TEMP_DIR,
-                f"clip_{numero:02d}.mp4"
-            )
-
-            sucesso = processar_clipe(
-                original,
-                saida_clipe,
-                CLIP_DURATION
-            )
-
-            # Remove original imediatamente
-            try:
-
-                if os.path.exists(
-                    original
-                ):
-
-                    os.remove(
-                        original
-                    )
-
-                original = None
-
-            except Exception:
-
-                pass
-
-            if not sucesso:
-
-                print(
-                    "[PULAR] Falha no processamento."
-                )
-
-                continue
-
-            clipes.append(
-                saida_clipe
-            )
-
-            numero += 1
-
-            print(
-                "[CLIPE ADICIONADO]",
-                len(clipes),
-                "/",
-                CLIP_COUNT
-            )
-
-        except Exception as erro:
-
-            print(
-                "[ERRO PROCESSANDO VÍDEO]",
-                erro
-            )
-
-            try:
-
-                if original and os.path.exists(
-                    original
-                ):
-
-                    os.remove(
-                        original
-                    )
-
-            except Exception:
-
-                pass
+        if not caminho:
 
             continue
 
-    # ========================================================
-    # VERIFICA SE CONSEGUIU 4
-    # ========================================================
+        originais.append(
+            caminho
+        )
+
+        # Primeiro verifica se o arquivo
+        # realmente é um vídeo.
+        if not verificar_video(
+            caminho
+        ):
+
+            print(
+                "[PULAR] Vídeo inválido."
+            )
+
+            continue
+
+        clipe = processar_clipe(
+            caminho,
+            len(clipes) + 1
+        )
+
+        if not clipe:
+
+            print(
+                "[PULAR] Falha no processamento."
+            )
+
+            continue
+
+        clipes.append(
+            clipe
+        )
+
+        print(
+            "[PROGRESSO]",
+            len(clipes),
+            "/",
+            CLIP_COUNT
+        )
 
     if len(clipes) < CLIP_COUNT:
 
-        raise Exception(
-            "Não foi possível processar "
-            "vídeos suficientes. "
-            f"Obtidos: {len(clipes)}/{CLIP_COUNT}"
+        limpar_arquivos(
+            originais
         )
 
-    # ========================================================
-    # JUNTAR CLIPES
-    # ========================================================
+        limpar_arquivos(
+            clipes
+        )
 
-    video_base = os.path.join(
+        raise Exception(
+            "Não foi possível processar "
+            "vídeos suficientes. Obtidos: "
+            f"{len(clipes)}/{CLIP_COUNT}"
+        )
+
+    # --------------------------------------------------------
+    # JUNTAR
+    # --------------------------------------------------------
+
+    unido = os.path.join(
         TEMP_DIR,
-        "video_base.mp4"
+        f"unido_{uuid.uuid4().hex}.mp4"
     )
 
     if not juntar_clipes(
         clipes,
-        video_base
+        unido
     ):
 
-        raise Exception(
-            "Erro ao juntar os clipes."
+        limpar_arquivos(
+            originais + clipes
         )
 
-    # ========================================================
-    # SAÍDA FINAL
-    # ========================================================
+        raise Exception(
+            "Não foi possível juntar os clipes."
+        )
+
+    # --------------------------------------------------------
+    # FINAL
+    # --------------------------------------------------------
 
     nome_final = (
         "mundo_afora_"
-        + limpar_nome(pais)
-        + "_"
-        + uuid.uuid4().hex[:8]
+        + uuid.uuid4().hex
         + ".mp4"
     )
 
@@ -1384,88 +1275,39 @@ def gerar_video(
         nome_final
     )
 
-    sucesso = finalizar_video(
-        video_base,
-        saida_final
-    )
-
-    if not sucesso:
-
-        raise Exception(
-            "Erro ao gerar vídeo final."
-        )
-
-    # ========================================================
-    # LIMPEZA FINAL
-    # ========================================================
-
     try:
 
-        for clipe in clipes:
-
-            if os.path.exists(
-                clipe
-            ):
-
-                os.remove(
-                    clipe
-                )
-
-        if os.path.exists(
-            video_base
-        ):
-
-            os.remove(
-                video_base
-            )
-
-        concat = os.path.join(
-            TEMP_DIR,
-            "concat.txt"
+        finalizar_video(
+            unido,
+            saida_final
         )
 
-        if os.path.exists(
-            concat
-        ):
-
-            os.remove(
-                concat
-            )
-
-    except Exception as erro:
+        print()
+        print("=" * 70)
 
         print(
-            "[ERRO LIMPEZA FINAL]",
-            erro
+            "[VÍDEO FINALIZADO]"
         )
 
-    print(
-        "========================================"
-    )
+        print(
+            saida_final
+        )
 
-    print(
-        "[VÍDEO GERADO COM SUCESSO]"
-    )
+        print("=" * 70)
 
-    print(
-        "[SEM MARCA D'ÁGUA]"
-    )
+    finally:
 
-    print(
-        "[SEM ÁUDIO]"
-    )
+        limpar_arquivos(
+            originais
+        )
 
-    print(
-        "[4 CLIPES x 15 SEGUNDOS]"
-    )
+        limpar_arquivos(
+            clipes
+        )
 
-    print(
-        saida_final
-    )
-
-    print(
-        "========================================"
-    )
+        limpar_arquivos(
+            [unido]
+        )
 
     return saida_final
 
@@ -1478,7 +1320,6 @@ def gerar_video(
     "/",
     methods=["GET", "POST"]
 )
-
 def index():
 
     if request.method == "POST":
@@ -1502,42 +1343,64 @@ def index():
                 mimetype="video/mp4"
             )
 
-        except Exception as erro:
+        except Exception as e:
 
             print(
                 "[ERRO GERAL]",
-                repr(erro)
+                repr(e)
             )
 
             return f"""
             <html>
-
-            <body style="
-                background:#111;
+            <head>
+            <meta charset="UTF-8">
+            <style>
+            body {{
+                background:#101010;
                 color:white;
                 font-family:Arial;
                 padding:30px;
-            ">
+            }}
+            .erro {{
+                max-width:700px;
+                margin:auto;
+                background:#1d1d1d;
+                padding:25px;
+                border-radius:15px;
+            }}
+            </style>
+            </head>
+
+            <body>
+
+            <div class="erro">
 
             <h2>❌ Erro ao gerar vídeo</h2>
 
-            <pre>{erro}</pre>
+            <p>
+            {str(e)}
+            </p>
 
-            <br>
+            <p>
+            Verifique os logs do Railway.
+            </p>
 
-            <a href="/" style="color:white;">
+            <a
+            href="/"
+            style="color:white"
+            >
             ← Voltar
             </a>
 
+            </div>
+
             </body>
-
             </html>
-            """
-
+            """, 500
 
     return render_template_string(
         HTML,
-        paises=PAISES.keys()
+        paises=list(PAISES.keys())
     )
 
 
@@ -1547,8 +1410,35 @@ def index():
 
 if __name__ == "__main__":
 
+    print()
+    print("=" * 70)
+    print("🌎 MUNDO AFORA")
+    print("=" * 70)
+
+    print(
+        "Porta:",
+        PORT
+    )
+
+    print(
+        "FFmpeg:",
+        FFMPEG
+    )
+
+    print(
+        "Clipes:",
+        CLIP_COUNT
+    )
+
+    print(
+        "Duração:",
+        DURATION,
+        "segundos"
+    )
+
+    print("=" * 70)
+
     app.run(
         host="0.0.0.0",
-        port=PORT,
-        debug=False
+        port=PORT
     )
