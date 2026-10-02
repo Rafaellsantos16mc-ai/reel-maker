@@ -1,26 +1,20 @@
 import os
 import random
 import uuid
+import asyncio
 import shutil
 import subprocess
-import asyncio
+import html
 import textwrap
 
 import requests
-import edge_tts
-import imageio_ffmpeg
-
-from PIL import Image, ImageDraw, ImageFont
 from flask import Flask, request, render_template_string, send_file
+from PIL import Image, ImageDraw, ImageFont
+import imageio_ffmpeg
+import edge_tts
 
-
-# ============================================================
-# APP
-# ============================================================
 
 app = Flask(__name__)
-
-PORT = int(os.getenv("PORT", "8080"))
 
 
 # ============================================================
@@ -30,6 +24,7 @@ PORT = int(os.getenv("PORT", "8080"))
 WIDTH = 1080
 HEIGHT = 1920
 
+# Processamento interno mais leve
 PROCESS_WIDTH = 540
 PROCESS_HEIGHT = 960
 
@@ -37,7 +32,6 @@ FPS = 24
 
 CLIP_DURATION = 15
 CLIP_COUNT = 4
-
 FINAL_DURATION = 60
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -45,300 +39,50 @@ PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 VOICE = "pt-BR-AntonioNeural"
 VOICE_RATE = "+8%"
 
-TEMP_DIR = "temp"
+VIDEO_DIR = "videos"
 OUTPUT_DIR = "outputs"
+TEMP_DIR = "temp"
 
-os.makedirs(TEMP_DIR, exist_ok=True)
+os.makedirs(VIDEO_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 
 # ============================================================
 # FFMPEG
 # ============================================================
 
-FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
-
-if not FFMPEG:
+try:
+    FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:
     FFMPEG = shutil.which("ffmpeg")
+
 
 if not FFMPEG:
     raise RuntimeError("FFmpeg não encontrado.")
 
 
 # ============================================================
-# FONTES
-# ============================================================
-
-FONT_PATHS = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-]
-
-FONT_PATH = None
-
-for caminho in FONT_PATHS:
-    if os.path.exists(caminho):
-        FONT_PATH = caminho
-        break
-
-
-def carregar_fonte(tamanho):
-
-    if FONT_PATH:
-
-        try:
-            return ImageFont.truetype(
-                FONT_PATH,
-                tamanho
-            )
-        except Exception:
-            pass
-
-    return ImageFont.load_default()
-
-
-# ============================================================
 # DESTINOS
 # ============================================================
 
-PAISES = {
-
-    "Brasil": {
-        "titulo": "BRASIL",
-        "buscas": [
-            "Brazil mountains landscape",
-            "Brazil waterfall nature",
-            "Brazil lake landscape",
-            "Brazil scenic nature"
-        ],
-        "texto": (
-            "O Brasil é conhecido por sua enorme diversidade natural. "
-            "Entre montanhas, cachoeiras, rios, florestas e praias, "
-            "o país reúne alguns dos cenários mais impressionantes da América do Sul."
-        )
-    },
-
-    "Ilhas Faroé": {
-        "titulo": "ILHAS FAROÉ",
-        "buscas": [
-            "Faroe Islands mountains",
-            "Faroe Islands waterfall",
-            "Faroe Islands cliffs",
-            "Faroe Islands landscape"
-        ],
-        "texto": (
-            "As Ilhas Faroé ficam no Atlântico Norte e são conhecidas "
-            "por suas montanhas verdes, falésias e cachoeiras. "
-            "O contraste entre o oceano e as montanhas cria paisagens únicas."
-        )
-    },
-
-    "Suíça": {
-        "titulo": "SUÍÇA",
-        "buscas": [
-            "Swiss Alps landscape",
-            "Switzerland mountains lake",
-            "Swiss Alps waterfall",
-            "Switzerland scenic landscape"
-        ],
-        "texto": (
-            "Os Alpes suíços formam algumas das paisagens mais conhecidas da Europa. "
-            "Montanhas, lagos, vales e pequenas cidades criam cenários "
-            "que parecem ter saído de um filme."
-        )
-    },
-
-    "Noruega": {
-        "titulo": "NORUEGA",
-        "buscas": [
-            "Norway fjords landscape",
-            "Norway mountains waterfall",
-            "Norway lake mountains",
-            "Norway scenic nature"
-        ],
-        "texto": (
-            "A Noruega é famosa pelos seus fiordes, montanhas e cachoeiras. "
-            "Em várias regiões, enormes paredes rochosas encontram águas calmas, "
-            "formando paisagens impressionantes."
-        )
-    },
-
-    "Islândia": {
-        "titulo": "ISLÂNDIA",
-        "buscas": [
-            "Iceland waterfall landscape",
-            "Iceland mountains",
-            "Iceland glacier landscape",
-            "Iceland scenic nature"
-        ],
-        "texto": (
-            "A Islândia reúne vulcões, geleiras, cachoeiras e paisagens praticamente intocadas. "
-            "É um dos lugares onde a natureza mostra mudanças impressionantes "
-            "em pequenas distâncias."
-        )
-    },
-
-    "Canadá": {
-        "titulo": "CANADÁ",
-        "buscas": [
-            "Canada Rocky Mountains",
-            "Canada lake mountains",
-            "Canada waterfall landscape",
-            "Canada scenic nature"
-        ],
-        "texto": (
-            "O Canadá possui algumas das maiores áreas naturais do planeta. "
-            "Montanhas, lagos de águas cristalinas e enormes florestas "
-            "formam paisagens impressionantes."
-        )
-    },
-
-    "Nova Zelândia": {
-        "titulo": "NOVA ZELÂNDIA",
-        "buscas": [
-            "New Zealand mountains",
-            "New Zealand waterfall",
-            "New Zealand lake landscape",
-            "New Zealand scenic nature"
-        ],
-        "texto": (
-            "A Nova Zelândia combina montanhas, lagos, florestas e cachoeiras "
-            "em uma paisagem extremamente diversificada. "
-            "Muitas dessas regiões parecem cenários de filmes."
-        )
-    },
-
-    "Áustria": {
-        "titulo": "ÁUSTRIA",
-        "buscas": [
-            "Austria Alps landscape",
-            "Austria mountain lake",
-            "Austria waterfall",
-            "Austria scenic landscape"
-        ],
-        "texto": (
-            "A Áustria é conhecida pelos Alpes, pelos lagos e pelas pequenas cidades cercadas "
-            "por montanhas. Durante o inverno, muitas regiões ficam cobertas de neve."
-        )
-    },
-
-    "Eslovênia": {
-        "titulo": "ESLOVÊNIA",
-        "buscas": [
-            "Slovenia mountains lake",
-            "Slovenia waterfall",
-            "Slovenia nature landscape",
-            "Slovenia Alps"
-        ],
-        "texto": (
-            "A Eslovênia é um pequeno país europeu com uma grande variedade de paisagens. "
-            "Montanhas, lagos, rios e florestas formam alguns dos cenários mais tranquilos da Europa."
-        )
-    },
-
-    "França": {
-        "titulo": "FRANÇA",
-        "buscas": [
-            "France Alps mountains",
-            "France mountain lake",
-            "France waterfall nature",
-            "France scenic landscape"
-        ],
-        "texto": (
-            "Além das cidades históricas, a França possui regiões montanhosas impressionantes. "
-            "Os Alpes franceses apresentam lagos, vales e montanhas que mudam completamente "
-            "de aparência durante o ano."
-        )
-    },
-
-    "Itália": {
-        "titulo": "ITÁLIA",
-        "buscas": [
-            "Italy Dolomites mountains",
-            "Italy mountain lake",
-            "Italy Alps landscape",
-            "Italy scenic nature"
-        ],
-        "texto": (
-            "As Dolomitas, no norte da Itália, são famosas por suas formações rochosas. "
-            "A região combina montanhas, vales e lagos em uma paisagem bastante característica."
-        )
-    },
-
-    "Estados Unidos": {
-        "titulo": "ESTADOS UNIDOS",
-        "buscas": [
-            "USA Rocky Mountains",
-            "USA mountain lake",
-            "USA waterfall landscape",
-            "USA scenic nature"
-        ],
-        "texto": (
-            "Os Estados Unidos possuem uma enorme diversidade de paisagens naturais. "
-            "Montanhas, cânions, lagos e florestas podem ser encontrados em diferentes regiões."
-        )
-    },
-
-    "Japão": {
-        "titulo": "JAPÃO",
-        "buscas": [
-            "Japan mountains nature",
-            "Japan waterfall",
-            "Japan lake mountains",
-            "Japan scenic landscape"
-        ],
-        "texto": (
-            "O Japão possui uma paisagem natural muito diversa. "
-            "Montanhas, florestas, lagos e cachoeiras aparecem em diferentes regiões, "
-            "criando cenários completamente diferentes entre as estações."
-        )
-    },
-
-    "Peru": {
-        "titulo": "PERU",
-        "buscas": [
-            "Peru Andes mountains",
-            "Peru mountain landscape",
-            "Peru lake mountains",
-            "Peru scenic nature"
-        ],
-        "texto": (
-            "O Peru abriga uma parte importante da Cordilheira dos Andes. "
-            "Montanhas enormes, vales e lagos em grandes altitudes "
-            "formam algumas das paisagens mais marcantes da América do Sul."
-        )
-    },
-
-    "Chile": {
-        "titulo": "CHILE",
-        "buscas": [
-            "Chile Patagonia mountains",
-            "Chile mountains lake",
-            "Chile waterfall nature",
-            "Chile Patagonia landscape"
-        ],
-        "texto": (
-            "O Chile possui uma das geografias mais variadas do mundo. "
-            "Na Patagônia, montanhas, lagos, geleiras e vales criam paisagens impressionantes."
-        )
-    },
-
-    "Argentina": {
-        "titulo": "ARGENTINA",
-        "buscas": [
-            "Argentina Patagonia mountains",
-            "Argentina lake mountains",
-            "Argentina waterfall landscape",
-            "Argentina scenic nature"
-        ],
-        "texto": (
-            "A Argentina possui grandes áreas naturais na região da Patagônia. "
-            "Montanhas, lagos, geleiras e florestas criam cenários muito diferentes "
-            "de outras partes do país."
-        )
-    }
+DESTINOS = {
+    "Brasil": "Brazil",
+    "Ilhas Faroé": "Faroe Islands",
+    "Suíça": "Switzerland",
+    "Noruega": "Norway",
+    "Islândia": "Iceland",
+    "Canadá": "Canada",
+    "Nova Zelândia": "New Zealand",
+    "Áustria": "Austria",
+    "Eslovênia": "Slovenia",
+    "França": "France",
+    "Itália": "Italy",
+    "Estados Unidos": "United States",
+    "Japão": "Japan",
+    "Peru": "Peru",
+    "Chile": "Chile",
+    "Argentina": "Argentina",
 }
 
 
@@ -348,7 +92,7 @@ PAISES = {
 
 HTML = """
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 
 <head>
 
@@ -363,7 +107,6 @@ content="width=device-width, initial-scale=1.0">
 
 body {
     margin: 0;
-    padding: 30px 15px;
     background: #111;
     color: white;
     font-family: Arial, sans-serif;
@@ -372,22 +115,23 @@ body {
 .container {
     max-width: 600px;
     margin: auto;
+    padding: 30px 20px;
 }
 
 h1 {
     text-align: center;
+    margin-bottom: 10px;
 }
 
-.subtitulo {
+p {
     text-align: center;
     color: #aaa;
-    margin-bottom: 30px;
 }
 
 label {
     display: block;
+    margin-top: 25px;
     margin-bottom: 8px;
-    font-weight: bold;
 }
 
 select,
@@ -397,7 +141,6 @@ button {
     border-radius: 10px;
     border: none;
     font-size: 16px;
-    margin-bottom: 20px;
 }
 
 select {
@@ -406,17 +149,36 @@ select {
 }
 
 button {
-    background: white;
+    margin-top: 30px;
+    background: #fff;
     color: #111;
     font-weight: bold;
+    cursor: pointer;
 }
 
-.info {
-    background: #1d1d1d;
+button:hover {
+    opacity: .9;
+}
+
+.erro {
+    background: #500;
     padding: 15px;
     border-radius: 10px;
-    color: #bbb;
-    line-height: 1.5;
+    margin-top: 20px;
+}
+
+.sucesso {
+    background: #153d20;
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 20px;
+}
+
+a {
+    display: block;
+    text-align: center;
+    color: white;
+    margin-top: 20px;
 }
 
 </style>
@@ -429,20 +191,20 @@ button {
 
 <h1>🌎 Mundo Afora</h1>
 
-<div class="subtitulo">
-Vídeos de lugares incríveis pelo mundo
-</div>
+<p>
+Vídeos de destinos incríveis para TikTok, Reels e Shorts
+</p>
 
-<form action="/gerar" method="POST">
+<form method="POST">
 
 <label>Escolha o destino</label>
 
-<select name="pais">
+<select name="destino" required>
 
-{% for pais in paises %}
+{% for nome in destinos %}
 
-<option value="{{ pais }}">
-{{ pais }}
+<option value="{{ nome }}">
+{{ nome }}
 </option>
 
 {% endfor %}
@@ -450,29 +212,30 @@ Vídeos de lugares incríveis pelo mundo
 </select>
 
 <button type="submit">
-🎬 GERAR VÍDEO
+🎬 Criar vídeo
 </button>
 
 </form>
 
-<div class="info">
+{% if erro %}
 
-Vídeo vertical 1080×1920 com:
-<br><br>
-
-• paisagens reais
-<br>
-• narração em português
-<br>
-• legendas
-<br>
-• 60 segundos
-<br>
-• sem música
-<br>
-• sem marca d'água
-
+<div class="erro">
+{{ erro }}
 </div>
+
+{% endif %}
+
+{% if sucesso %}
+
+<div class="sucesso">
+{{ sucesso }}
+</div>
+
+<a href="{{ arquivo }}" download>
+⬇️ Baixar vídeo
+</a>
+
+{% endif %}
 
 </div>
 
@@ -483,15 +246,14 @@ Vídeo vertical 1080×1920 com:
 
 
 # ============================================================
-# FFMPEG
+# EXECUTAR FFMPEG
 # ============================================================
 
 def executar_ffmpeg(comando):
 
-    print("=" * 60)
-    print("[FFMPEG]")
-    print(" ".join(comando))
-    print("=" * 60)
+    print("\n[FFMPEG]")
+
+    print(" ".join(str(x) for x in comando))
 
     resultado = subprocess.run(
         comando,
@@ -502,25 +264,25 @@ def executar_ffmpeg(comando):
 
     if resultado.returncode != 0:
 
-        print("=" * 60)
-        print("[ERRO FFMPEG]")
+        print("\n[ERRO FFMPEG]")
+
         print("RETURN CODE:", resultado.returncode)
+
         print(resultado.stderr)
-        print("=" * 60)
 
         raise RuntimeError(
             "FFmpeg falhou:\n\n" +
-            resultado.stderr[-4000:]
+            resultado.stderr[-5000:]
         )
 
     return resultado
 
 
 # ============================================================
-# BUSCAR VÍDEO
+# BUSCAR VÍDEO NO PEXELS
 # ============================================================
 
-def buscar_video(query):
+def buscar_video(termo):
 
     if not PEXELS_API_KEY:
         raise RuntimeError(
@@ -534,159 +296,123 @@ def buscar_video(query):
     }
 
     params = {
-        "query": query,
+        "query": termo,
         "per_page": 20,
         "orientation": "portrait"
     }
 
-    response = requests.get(
+    resposta = requests.get(
         url,
         headers=headers,
         params=params,
         timeout=30
     )
 
-    response.raise_for_status()
+    if resposta.status_code != 200:
 
-    dados = response.json()
-
-    videos = dados.get(
-        "videos",
-        []
-    )
-
-    if not videos:
         raise RuntimeError(
-            f"Nenhum vídeo encontrado: {query}"
+            f"Pexels retornou HTTP {resposta.status_code}"
         )
 
-    random.shuffle(videos)
+    dados = resposta.json()
 
-    candidatos = []
+    videos = dados.get("videos", [])
+
+    if not videos:
+        return None
+
+    # Embaralha para evitar sempre os mesmos vídeos
+    random.shuffle(videos)
 
     for video in videos:
 
-        arquivos = video.get(
-            "video_files",
-            []
-        )
+        arquivos = video.get("video_files", [])
+
+        candidatos = []
 
         for arquivo in arquivos:
 
+            largura = arquivo.get("width") or 0
+            altura = arquivo.get("height") or 0
             link = arquivo.get("link")
 
             if not link:
                 continue
 
-            largura = arquivo.get(
-                "width"
-            ) or 0
-
-            altura = arquivo.get(
-                "height"
-            ) or 0
-
-            tamanho = largura * altura
-
-            if largura >= 500 and altura >= 800:
-
+            # Preferência por vertical
+            if altura >= largura:
                 candidatos.append(
-                    {
-                        "link": link,
-                        "width": largura,
-                        "height": altura,
-                        "pixels": tamanho
-                    }
+                    (
+                        abs(
+                            (altura / max(largura, 1))
+                            - (16 / 9)
+                        ),
+                        link,
+                        largura,
+                        altura
+                    )
                 )
 
-    if not candidatos:
-        raise RuntimeError(
-            "Nenhum arquivo compatível encontrado."
-        )
+        if candidatos:
 
-    def pontuacao(item):
+            candidatos.sort(
+                key=lambda x: x[0]
+            )
 
-        largura = item["width"]
-        altura = item["height"]
+            return candidatos[0][1]
 
-        vertical = altura > largura
+    # Fallback para qualquer vídeo
+    for video in videos:
 
-        score = 0
+        arquivos = video.get("video_files", [])
 
-        if vertical:
-            score += 100000000
+        if arquivos:
 
-        distancia = abs(
-            (largura * altura) -
-            (540 * 960)
-        )
+            arquivos.sort(
+                key=lambda x:
+                (x.get("width") or 0) *
+                (x.get("height") or 0),
+                reverse=True
+            )
 
-        score -= distancia
+            link = arquivos[0].get("link")
 
-        if largura > 1500 or altura > 2500:
-            score -= 5000000
+            if link:
+                return link
 
-        return score
-
-    candidatos.sort(
-        key=pontuacao,
-        reverse=True
-    )
-
-    escolhido = candidatos[0]
-
-    print("=" * 60)
-    print("[PEXELS ESCOLHIDO]")
-    print(
-        escolhido["width"],
-        "x",
-        escolhido["height"]
-    )
-    print(escolhido["link"])
-    print("=" * 60)
-
-    return escolhido["link"]
+    return None
 
 
 # ============================================================
-# DOWNLOAD
+# BAIXAR VÍDEO
 # ============================================================
 
-def baixar_video(url, destino):
+def baixar_video(url, caminho):
 
-    print("[DOWNLOAD]")
-    print(url)
+    print("[DOWNLOAD]", url)
 
-    with requests.get(
+    resposta = requests.get(
         url,
         stream=True,
-        timeout=180
-    ) as response:
-
-        response.raise_for_status()
-
-        with open(
-            destino,
-            "wb"
-        ) as arquivo:
-
-            for bloco in response.iter_content(
-                chunk_size=1024 * 1024
-            ):
-
-                if bloco:
-                    arquivo.write(bloco)
-
-    tamanho = os.path.getsize(
-        destino
+        timeout=120
     )
+
+    resposta.raise_for_status()
+
+    with open(caminho, "wb") as arquivo:
+
+        for bloco in resposta.iter_content(
+            chunk_size=1024 * 1024
+        ):
+
+            if bloco:
+                arquivo.write(bloco)
+
+    tamanho = os.path.getsize(caminho)
 
     print(
         "[OK DOWNLOAD]",
-        round(
-            tamanho / 1024 / 1024,
-            2
-        ),
+        round(tamanho / 1024 / 1024, 2),
         "MB"
     )
 
@@ -695,74 +421,94 @@ def baixar_video(url, destino):
 # PROCESSAR CLIPE
 # ============================================================
 
-def processar_clipe(
-    original,
-    saida
-):
+def processar_clipe(entrada, saida):
+
+    comando = [
+        FFMPEG,
+
+        "-hide_banner",
+        "-loglevel", "error",
+        "-y",
+
+        "-i", entrada,
+
+        "-vf",
+        (
+            f"scale={PROCESS_WIDTH}:{PROCESS_HEIGHT}:"
+            "force_original_aspect_ratio=increase,"
+            f"crop={PROCESS_WIDTH}:{PROCESS_HEIGHT}"
+        ),
+
+        "-an",
+
+        "-t", str(CLIP_DURATION),
+
+        "-r", str(FPS),
+
+        "-c:v", "libx264",
+
+        "-preset", "ultrafast",
+
+        "-crf", "30",
+
+        "-pix_fmt", "yuv420p",
+
+        saida
+    ]
+
+    executar_ffmpeg(comando)
+
+
+# ============================================================
+# CONVERTER CLIPES PARA 1080x1920
+# ============================================================
+
+def preparar_clipe_final(entrada, saida):
 
     comando = [
 
         FFMPEG,
 
         "-hide_banner",
-        "-loglevel",
-        "error",
+        "-loglevel", "error",
         "-y",
 
-        "-i",
-        original,
-
-        "-t",
-        str(CLIP_DURATION),
+        "-i", entrada,
 
         "-vf",
-
         (
-            f"scale={PROCESS_WIDTH}:{PROCESS_HEIGHT}:"
+            f"scale={WIDTH}:{HEIGHT}:"
             "force_original_aspect_ratio=increase,"
-            f"crop={PROCESS_WIDTH}:{PROCESS_HEIGHT},"
-            f"fps={FPS},"
-            "format=yuv420p"
+            f"crop={WIDTH}:{HEIGHT}"
         ),
 
         "-an",
 
-        "-c:v",
-        "libx264",
+        "-r", str(FPS),
 
-        "-preset",
-        "ultrafast",
+        "-c:v", "libx264",
 
-        "-crf",
-        "30",
+        "-preset", "ultrafast",
 
-        "-pix_fmt",
-        "yuv420p",
+        "-crf", "31",
 
-        "-r",
-        str(FPS),
+        "-pix_fmt", "yuv420p",
 
         saida
     ]
 
-    executar_ffmpeg(
-        comando
-    )
+    executar_ffmpeg(comando)
 
 
 # ============================================================
-# CONCATENAR
+# CONCATENAR CLIPES
 # ============================================================
 
-def concatenar_clipes(
-    clipes,
-    saida,
-    pasta
-):
+def concatenar_clipes(clipes, saida):
 
     lista = os.path.join(
-        pasta,
-        "lista.txt"
+        TEMP_DIR,
+        f"lista_{uuid.uuid4().hex}.txt"
     )
 
     with open(
@@ -775,15 +521,12 @@ def concatenar_clipes(
 
             caminho = os.path.abspath(
                 clipe
-            )
-
-            caminho = caminho.replace(
-                "'",
-                "'\\''"
-            )
+            ).replace("\\", "/")
 
             arquivo.write(
-                f"file '{caminho}'\n"
+                "file '" +
+                caminho.replace("'", "'\\''") +
+                "'\n"
             )
 
     comando = [
@@ -791,157 +534,230 @@ def concatenar_clipes(
         FFMPEG,
 
         "-hide_banner",
-        "-loglevel",
-        "error",
+        "-loglevel", "error",
         "-y",
 
-        "-f",
-        "concat",
+        "-f", "concat",
 
-        "-safe",
-        "0",
+        "-safe", "0",
 
-        "-i",
-        lista,
+        "-i", lista,
 
-        "-an",
+        "-c", "copy",
 
-        "-c",
-        "copy",
+        "-t", str(FINAL_DURATION),
 
         saida
     ]
 
-    executar_ffmpeg(
-        comando
-    )
-
     try:
-        os.remove(lista)
-    except:
-        pass
+
+        executar_ffmpeg(comando)
+
+    finally:
+
+        try:
+            os.remove(lista)
+        except:
+            pass
 
 
 # ============================================================
 # ROTEIRO
 # ============================================================
 
-def criar_roteiro(
-    pais
-):
+def criar_roteiro(destino):
 
-    dados = PAISES[pais]
+    textos = {
 
-    texto = (
-        f"Você já imaginou conhecer este lugar? "
-        f"Hoje o Mundo Afora te leva para {dados['titulo']}. "
-        f"{dados['texto']} "
-        "E o mais impressionante é que cada paisagem "
-        "parece revelar um cenário diferente. "
-        "Se você pudesse viajar para qualquer lugar do mundo, "
-        "qual destino escolheria?"
+        "Brasil":
+        "O Brasil é um país de paisagens impressionantes. "
+        "Da floresta amazônica às praias paradisíacas, "
+        "cada região guarda lugares que parecem ter saído de um filme.",
+
+        "Ilhas Faroé":
+        "As Ilhas Faroé parecem pertencer a outro planeta. "
+        "Montanhas verdes, cachoeiras, falésias e pequenas vilas "
+        "formam uma das paisagens mais impressionantes do Atlântico Norte.",
+
+        "Suíça":
+        "A Suíça é conhecida por suas montanhas gigantes, "
+        "lagos cristalinos e pequenas cidades cercadas pelos Alpes. "
+        "É um daqueles lugares que parecem uma pintura.",
+
+        "Noruega":
+        "A Noruega reúne fiordes gigantes, montanhas e pequenas vilas "
+        "em meio a uma natureza praticamente intocada. "
+        "Uma paisagem que impressiona em qualquer época do ano.",
+
+        "Islândia":
+        "A Islândia é uma terra de extremos. "
+        "Vulcões, geleiras, cachoeiras e praias de areia negra "
+        "fazem parte de uma das paisagens mais diferentes do mundo.",
+
+        "Canadá":
+        "O Canadá possui algumas das maiores áreas naturais preservadas "
+        "do planeta. Lagos azul-turquesa, florestas e enormes montanhas "
+        "criam cenários impressionantes.",
+
+        "Nova Zelândia":
+        "A Nova Zelândia parece ter sido criada para quem ama natureza. "
+        "Montanhas, lagos, florestas e praias aparecem lado a lado "
+        "em paisagens incríveis.",
+
+        "Áustria":
+        "A Áustria combina cidades históricas com enormes montanhas, "
+        "lagos e vilarejos alpinos. "
+        "Durante o inverno, o cenário fica ainda mais impressionante.",
+
+        "Eslovênia":
+        "A Eslovênia é um pequeno país europeu com paisagens gigantes. "
+        "Lagos, montanhas, florestas e cachoeiras fazem parte "
+        "de um dos cenários mais bonitos dos Alpes.",
+
+        "França":
+        "A França vai muito além de Paris. "
+        "O país possui montanhas, vilarejos históricos, praias "
+        "e paisagens naturais espalhadas por diferentes regiões.",
+
+        "Itália":
+        "A Itália reúne história, montanhas, lagos e pequenas cidades "
+        "que parecem ter parado no tempo. "
+        "Cada região possui uma paisagem completamente diferente.",
+
+        "Estados Unidos":
+        "Os Estados Unidos possuem alguns dos cenários naturais "
+        "mais impressionantes do planeta. "
+        "De grandes montanhas a desertos e parques nacionais.",
+
+        "Japão":
+        "O Japão mistura cidades modernas com montanhas, florestas "
+        "e paisagens naturais impressionantes. "
+        "Durante o outono e a primavera, o cenário fica ainda mais especial.",
+
+        "Peru":
+        "O Peru possui montanhas gigantes, vales profundos "
+        "e paisagens que contam milhares de anos de história. "
+        "É um dos destinos mais fascinantes da América do Sul.",
+
+        "Chile":
+        "O Chile se estende por milhares de quilômetros "
+        "e possui desertos, vulcões, lagos e enormes montanhas. "
+        "A diversidade de paisagens é impressionante.",
+
+        "Argentina":
+        "A Argentina possui algumas das paisagens mais impressionantes "
+        "da América do Sul. "
+        "Montanhas, geleiras, lagos e grandes áreas naturais "
+        "formam cenários inesquecíveis."
+    }
+
+    return textos.get(
+        destino,
+        f"Conheça as paisagens incríveis de {destino}. "
+        "Um destino cheio de lugares impressionantes "
+        "que merecem ser descobertos."
     )
 
-    return texto
-
 
 # ============================================================
-# NARRAÇÃO
+# GERAR ÁUDIO
 # ============================================================
 
-async def gerar_audio_async(
-    texto,
-    saida
-):
+async def gerar_audio_async(texto, arquivo):
 
     comunicador = edge_tts.Communicate(
-        text=texto,
-        voice=VOICE,
-        rate=VOICE_RATE,
-        volume="+0%",
-        pitch="+0Hz"
+        texto,
+        VOICE,
+        rate=VOICE_RATE
     )
 
-    await comunicador.save(
-        saida
-    )
+    await comunicador.save(arquivo)
 
 
-def gerar_audio(
-    texto,
-    saida
-):
-
-    print("=" * 60)
-    print("[NARRAÇÃO]")
-    print(texto)
-    print("=" * 60)
+def gerar_audio(texto, arquivo):
 
     asyncio.run(
         gerar_audio_async(
             texto,
-            saida
+            arquivo
         )
     )
+
+
+# ============================================================
+# FONTE
+# ============================================================
+
+def encontrar_fonte():
+
+    fontes = [
+
+        "/usr/share/fonts/truetype/dejavu/"
+        "DejaVuSans-Bold.ttf",
+
+        "/usr/share/fonts/truetype/liberation2/"
+        "LiberationSans-Bold.ttf",
+
+        "/usr/share/fonts/truetype/dejavu/"
+        "DejaVuSans.ttf"
+    ]
+
+    for fonte in fontes:
+
+        if os.path.exists(fonte):
+            return fonte
+
+    return None
 
 
 # ============================================================
 # CRIAR IMAGEM DE LEGENDA
 # ============================================================
 
-def criar_imagem_legenda(
-    texto,
-    caminho
-):
+def criar_imagem_legenda(texto, arquivo):
 
     imagem = Image.new(
         "RGBA",
-        (
-            WIDTH,
-            HEIGHT
-        ),
-        (
-            0,
-            0,
-            0,
-            0
+        (WIDTH, HEIGHT),
+        (0, 0, 0, 0)
+    )
+
+    desenho = ImageDraw.Draw(imagem)
+
+    fonte_path = encontrar_fonte()
+
+    if fonte_path:
+
+        fonte = ImageFont.truetype(
+            fonte_path,
+            54
         )
-    )
 
-    draw = ImageDraw.Draw(
-        imagem
-    )
+    else:
 
-    fonte = carregar_fonte(
-        48
-    )
+        fonte = ImageFont.load_default()
 
+    # Quebra automática
     linhas = textwrap.wrap(
         texto,
-        width=34
+        width=30
     )
 
-    linhas = linhas[:3]
-
-    espacamento = 10
-
-    medidas = []
-
-    altura_total = 0
-    largura_max = 0
+    textos = []
 
     for linha in linhas:
 
-        bbox = draw.textbbox(
+        caixa = desenho.textbbox(
             (0, 0),
             linha,
             font=fonte
         )
 
-        largura = bbox[2] - bbox[0]
-        altura = bbox[3] - bbox[1]
+        largura = caixa[2] - caixa[0]
+        altura = caixa[3] - caixa[1]
 
-        medidas.append(
+        textos.append(
             (
                 linha,
                 largura,
@@ -949,146 +765,148 @@ def criar_imagem_legenda(
             )
         )
 
-        largura_max = max(
-            largura_max,
-            largura
-        )
+    espacamento = 12
 
-        altura_total += altura
-
-    altura_total += (
-        espacamento *
-        max(
-            len(medidas) - 1,
-            0
-        )
+    altura_total = sum(
+        item[2]
+        for item in textos
+    ) + (
+        max(len(textos) - 1, 0)
+        * espacamento
     )
 
-    padding_x = 35
-    padding_y = 25
-
-    box_width = (
-        largura_max +
-        padding_x * 2
+    # Posição aproximada no centro inferior
+    y = int(
+        HEIGHT * 0.70
+        - altura_total / 2
     )
 
-    box_height = (
-        altura_total +
-        padding_y * 2
+    padding_x = 45
+    padding_y = 30
+
+    largura_max = max(
+        item[1]
+        for item in textos
     )
 
-    box_x = (
-        WIDTH -
-        box_width
-    ) // 2
-
-    box_y = (
-        HEIGHT -
-        320 -
-        altura_total -
-        padding_y
+    caixa_esquerda = (
+        WIDTH // 2
+        - largura_max // 2
+        - padding_x
     )
 
-    draw.rounded_rectangle(
+    caixa_direita = (
+        WIDTH // 2
+        + largura_max // 2
+        + padding_x
+    )
+
+    caixa_cima = y - padding_y
+
+    caixa_baixo = (
+        y
+        + altura_total
+        + padding_y
+    )
+
+    # Fundo preto transparente
+    desenho.rounded_rectangle(
         (
-            box_x,
-            box_y,
-            box_x + box_width,
-            box_y + box_height
+            caixa_esquerda,
+            caixa_cima,
+            caixa_direita,
+            caixa_baixo
         ),
-        radius=20,
-        fill=(
-            0,
-            0,
-            0,
-            165
-        )
+        radius=25,
+        fill=(0, 0, 0, 175)
     )
 
-    y = box_y + padding_y
-
-    for linha, largura, altura in medidas:
+    for linha, largura, altura in textos:
 
         x = (
-            WIDTH -
-            largura
-        ) // 2
+            WIDTH // 2
+            - largura // 2
+        )
 
-        draw.text(
-            (
-                x,
-                y
-            ),
+        # Sombra
+        desenho.text(
+            (x + 3, y + 3),
             linha,
             font=fonte,
-            fill=(
-                255,
-                255,
-                255,
-                255
-            ),
-            stroke_width=3,
-            stroke_fill=(
-                0,
-                0,
-                0,
-                255
-            )
+            fill=(0, 0, 0, 255)
         )
 
-        y += (
-            altura +
-            espacamento
+        # Texto
+        desenho.text(
+            (x, y),
+            linha,
+            font=fonte,
+            fill=(255, 255, 255, 255)
         )
+
+        y += altura + espacamento
 
     imagem.save(
-        caminho,
+        arquivo,
         "PNG"
     )
 
 
 # ============================================================
-# DIVIDIR ROTEIRO
+# DIVIDIR TEXTO
 # ============================================================
 
-def dividir_texto(
-    texto,
-    max_chars=55
-):
+def dividir_texto(texto, quantidade=8):
 
     palavras = texto.split()
 
-    frases = []
+    if not palavras:
+        return []
 
-    atual = ""
+    total_caracteres = len(texto)
+
+    alvo = max(
+        1,
+        total_caracteres / quantidade
+    )
+
+    partes = []
+
+    atual = []
+    tamanho_atual = 0
 
     for palavra in palavras:
 
-        tentativa = (
-            atual +
-            " " +
-            palavra
-        ).strip()
+        atual.append(palavra)
 
-        if len(tentativa) <= max_chars:
-
-            atual = tentativa
-
-        else:
-
-            if atual:
-                frases.append(
-                    atual
-                )
-
-            atual = palavra
-
-    if atual:
-        frases.append(
-            atual
+        tamanho_atual += (
+            len(palavra) + 1
         )
 
-    return frases
+        if (
+            tamanho_atual >= alvo
+            and len(partes) < quantidade - 1
+        ):
+
+            partes.append(
+                " ".join(atual)
+            )
+
+            atual = []
+            tamanho_atual = 0
+
+    if atual:
+        partes.append(
+            " ".join(atual)
+        )
+
+    while len(partes) < quantidade:
+
+        partes.append(
+            partes[-1]
+        )
+
+    return partes[:quantidade]
 
 
 # ============================================================
@@ -1100,175 +918,203 @@ def criar_legenda_pngs(
     pasta
 ):
 
-    frases = dividir_texto(
-        texto,
-        55
+    os.makedirs(
+        pasta,
+        exist_ok=True
     )
 
-    if not frases:
-        return []
+    partes = dividir_texto(
+        texto,
+        8
+    )
 
-    pesos = [
-        max(len(frase), 1)
-        for frase in frases
+    # Distribuição baseada no número de caracteres
+    tamanhos = [
+        max(len(x), 1)
+        for x in partes
     ]
 
-    total = sum(pesos)
+    total = sum(tamanhos)
 
-    resultado = []
+    legendas = []
 
-    tempo = 0.0
+    tempo_atual = 0
 
-    for indice, frase in enumerate(frases):
+    for i, parte in enumerate(partes):
 
         duracao = (
-            FINAL_DURATION *
-            pesos[indice] /
-            total
+            FINAL_DURATION
+            * tamanhos[i]
+            / total
         )
 
-        inicio = tempo
+        inicio = tempo_atual
 
-        fim = tempo + duracao
+        fim = (
+            tempo_atual
+            + duracao
+        )
 
-        if indice == len(frases) - 1:
-            fim = FINAL_DURATION
-
-        caminho = os.path.join(
+        arquivo = os.path.join(
             pasta,
-            f"legenda_{indice}.png"
+            f"legenda_{i}.png"
         )
 
         criar_imagem_legenda(
-            frase,
-            caminho
+            parte,
+            arquivo
         )
 
-        resultado.append(
+        legendas.append(
             {
-                "arquivo": caminho,
+                "arquivo": arquivo,
                 "inicio": inicio,
                 "fim": fim
             }
         )
 
-        tempo = fim
+        print(
+            f"[LEGENDA {i + 1}/8]"
+        )
 
-    return resultado
+        print(
+            inicio,
+            "->",
+            fim
+        )
+
+        tempo_atual = fim
+
+    return legendas
 
 
 # ============================================================
-# APLICAR UMA LEGENDA
+# APLICAR TODAS AS LEGENDAS
+# UMA ÚNICA VEZ
 # ============================================================
 
-def aplicar_legenda(
+def aplicar_todas_legendas(
     video_entrada,
-    imagem,
-    inicio,
-    fim,
+    legendas,
     saida
 ):
 
-    print("=" * 60)
-    print("[APLICANDO LEGENDA]")
-    print("Imagem:", imagem)
-    print("Inicio:", inicio)
-    print("Fim:", fim)
-    print("=" * 60)
+    print("\n[APLICANDO TODAS AS LEGENDAS DE UMA VEZ]")
 
-    # --------------------------------------------------------
-    # IMPORTANTE:
-    #
-    # Não usamos mais:
-    #
-    # -loop 1 -i legenda.png
-    #
-    # Isso estava causando o problema no processamento.
-    #
-    # Agora criamos uma entrada de vídeo de 60 segundos
-    # a partir do PNG.
-    # --------------------------------------------------------
+    filtros = []
+
+    # Vídeo principal
+    filtros.append(
+        "[0:v]setpts=PTS-STARTPTS[base0]"
+    )
+
+    entrada_atual = "base0"
+
+    # Cada PNG vira uma entrada
+    for i, legenda in enumerate(legendas):
+
+        indice_video = i + 1
+
+        nome_legenda = f"leg{i}"
+
+        nome_saida = f"base{i + 1}"
+
+        filtros.append(
+            f"[{indice_video}:v]"
+            "format=rgba,"
+            "setpts=PTS-STARTPTS,"
+            f"trim=duration={FINAL_DURATION},"
+            "setpts=PTS-STARTPTS"
+            f"[{nome_legenda}]"
+        )
+
+        filtros.append(
+            f"[{entrada_atual}]"
+            f"[{nome_legenda}]"
+            "overlay="
+            "0:0:"
+            "eof_action=repeat:"
+            "shortest=0:"
+            f"enable='between(t,{legenda['inicio']:.3f},{legenda['fim']:.3f})'"
+            f"[{nome_saida}]"
+        )
+
+        entrada_atual = nome_saida
+
+    filtro_final = ";".join(
+        filtros
+    )
 
     comando = [
 
         FFMPEG,
 
         "-hide_banner",
-        "-loglevel",
-        "error",
+        "-loglevel", "error",
         "-y",
 
-        # Vídeo
         "-i",
-        video_entrada,
-
-        # PNG transformado em vídeo
-        "-loop",
-        "1",
-
-        "-framerate",
-        str(FPS),
-
-        "-i",
-        imagem,
-
-        "-filter_complex",
-
-        (
-            f"[1:v]"
-            f"format=rgba,"
-            f"setpts=PTS-STARTPTS,"
-            f"trim=duration={FINAL_DURATION},"
-            f"setpts=PTS-STARTPTS"
-            f"[leg];"
-
-            f"[0:v]"
-            f"setpts=PTS-STARTPTS"
-            f"[base];"
-
-            f"[base][leg]"
-            f"overlay=0:0:"
-            f"eof_action=repeat:"
-            f"shortest=0:"
-            f"enable='between(t,{inicio:.3f},{fim:.3f})'"
-            f"[v]"
-        ),
-
-        "-map",
-        "[v]",
-
-        "-map",
-        "0:a?",
-
-        "-c:v",
-        "libx264",
-
-        "-preset",
-        "ultrafast",
-
-        "-crf",
-        "31",
-
-        "-pix_fmt",
-        "yuv420p",
-
-        "-r",
-        str(FPS),
-
-        "-c:a",
-        "aac",
-
-        "-b:a",
-        "128k",
-
-        "-t",
-        str(FINAL_DURATION),
-
-        "-movflags",
-        "+faststart",
-
-        saida
+        video_entrada
     ]
+
+    # Adiciona todos os PNGs
+    for legenda in legendas:
+
+        comando.extend(
+            [
+                "-loop",
+                "1",
+
+                "-framerate",
+                str(FPS),
+
+                "-i",
+                legenda["arquivo"]
+            ]
+        )
+
+    comando.extend(
+        [
+
+            "-filter_complex",
+            filtro_final,
+
+            "-map",
+            f"[{entrada_atual}]",
+
+            "-map",
+            "0:a?",
+
+            "-c:v",
+            "libx264",
+
+            "-preset",
+            "ultrafast",
+
+            "-crf",
+            "31",
+
+            "-pix_fmt",
+            "yuv420p",
+
+            "-r",
+            str(FPS),
+
+            "-c:a",
+            "aac",
+
+            "-b:a",
+            "128k",
+
+            "-t",
+            str(FINAL_DURATION),
+
+            "-movflags",
+            "+faststart",
+
+            saida
+        ]
+    )
 
     executar_ffmpeg(
         comando
@@ -1276,7 +1122,7 @@ def aplicar_legenda(
 
 
 # ============================================================
-# FINALIZAR
+# FINALIZAR VÍDEO
 # ============================================================
 
 def finalizar_video(
@@ -1286,13 +1132,10 @@ def finalizar_video(
     saida
 ):
 
-    # --------------------------------------------------------
-    # PRIMEIRO:
-    # coloca a narração
-    # --------------------------------------------------------
+    print("\n[ADICIONANDO NARRAÇÃO]")
 
     video_audio = os.path.join(
-        os.path.dirname(saida),
+        OUTPUT_DIR,
         f"video_audio_{uuid.uuid4().hex}.mp4"
     )
 
@@ -1301,8 +1144,7 @@ def finalizar_video(
         FFMPEG,
 
         "-hide_banner",
-        "-loglevel",
-        "error",
+        "-loglevel", "error",
         "-y",
 
         "-i",
@@ -1317,6 +1159,7 @@ def finalizar_video(
         "-map",
         "1:a:0",
 
+        # Não reencoda o vídeo aqui
         "-c:v",
         "copy",
 
@@ -1339,139 +1182,115 @@ def finalizar_video(
         comando_audio
     )
 
-    atual = video_audio
+    try:
 
-    arquivos_temporarios = []
-
-    # --------------------------------------------------------
-    # LEGENDAS
-    # --------------------------------------------------------
-
-    for indice, legenda in enumerate(legendas):
-
-        if indice == len(legendas) - 1:
-
-            destino = saida
-
-        else:
-
-            destino = os.path.join(
-                os.path.dirname(saida),
-                f"legenda_temp_{uuid.uuid4().hex}.mp4"
-            )
-
-            arquivos_temporarios.append(
-                destino
-            )
-
-        print("=" * 60)
         print(
-            f"[LEGENDA {indice + 1}/{len(legendas)}]"
-        )
-        print(
-            legenda["inicio"],
-            "->",
-            legenda["fim"]
-        )
-        print("=" * 60)
-
-        aplicar_legenda(
-            atual,
-            legenda["arquivo"],
-            legenda["inicio"],
-            legenda["fim"],
-            destino
+            "\n[APLICANDO LEGENDAS]"
         )
 
-        if atual != video_audio:
+        aplicar_todas_legendas(
+            video_audio,
+            legendas,
+            saida
+        )
 
-            try:
-                os.remove(atual)
-            except Exception:
-                pass
+    finally:
 
-        atual = destino
+        try:
+            os.remove(
+                video_audio
+            )
+        except:
+            pass
 
-    # --------------------------------------------------------
-    # LIMPEZA
-    # --------------------------------------------------------
+
+# ============================================================
+# LIMPAR ARQUIVO
+# ============================================================
+
+def apagar_arquivo(caminho):
 
     try:
-        os.remove(video_audio)
-    except Exception:
-        pass
 
-    for arquivo in arquivos_temporarios:
+        if caminho and os.path.exists(caminho):
 
-        if arquivo != saida:
+            os.remove(caminho)
 
-            try:
-                os.remove(arquivo)
-            except Exception:
-                pass
+    except Exception as erro:
 
-
-# ============================================================
-# GERAR VÍDEO
-# ============================================================
-
-def gerar_video(
-    pais
-):
-
-    if pais not in PAISES:
-
-        raise RuntimeError(
-            "Destino inválido."
+        print(
+            "[AVISO] Não foi possível remover:",
+            caminho,
+            erro
         )
 
-    dados = PAISES[pais]
 
-    pasta = os.path.join(
+# ============================================================
+# CRIAR VÍDEO
+# ============================================================
+
+def criar_video(destino):
+
+    if not PEXELS_API_KEY:
+
+        raise RuntimeError(
+            "Configure a variável PEXELS_API_KEY no Railway."
+        )
+
+    trabalho = os.path.join(
         TEMP_DIR,
         uuid.uuid4().hex
     )
 
     os.makedirs(
-        pasta,
+        trabalho,
         exist_ok=True
     )
 
-    clipes = []
+    downloads = []
+    clipes_processados = []
+    clipes_finais = []
 
     try:
 
+        termo = DESTINOS.get(
+            destino,
+            destino
+        )
+
         # ====================================================
-        # 4 CLIPES
+        # 1. DOWNLOAD DOS 4 VÍDEOS
         # ====================================================
 
-        for indice in range(
-            CLIP_COUNT
-        ):
+        for i in range(CLIP_COUNT):
 
-            query = random.choice(
-                dados["buscas"]
-            )
-
-            print("=" * 60)
             print(
-                f"[BUSCA {indice + 1}/{CLIP_COUNT}]"
+                f"\n[BUSCANDO VÍDEO {i + 1}/{CLIP_COUNT}]"
             )
-            print(query)
-            print("=" * 60)
 
             url = buscar_video(
-                query
+                termo
             )
 
+            if not url:
+
+                raise RuntimeError(
+                    f"Não foi encontrado vídeo para {destino}."
+                )
+
             original = os.path.join(
-                pasta,
-                f"original_{indice}.mp4"
+                trabalho,
+                f"original_{i}.mp4"
             )
 
             processado = os.path.join(
-                pasta,
-                f"clip_{indice}.mp4"
+                trabalho,
+                f"processado_{i}.mp4"
+            )
+
+            final = os.path.join(
+                trabalho,
+                f"final_{i}.mp4"
             )
 
             baixar_video(
@@ -1479,121 +1298,183 @@ def gerar_video(
                 original
             )
 
+            downloads.append(
+                original
+            )
+
+            # =================================================
+            # 2. PROCESSAMENTO LEVE
+            # =================================================
+
+            print(
+                f"[PROCESSANDO CLIPE {i + 1}/{CLIP_COUNT}]"
+            )
+
             processar_clipe(
                 original,
                 processado
             )
 
-            try:
-                os.remove(
-                    original
-                )
-            except Exception:
-                pass
+            clipes_processados.append(
+                processado
+            )
 
-            clipes.append(
+            apagar_arquivo(
+                original
+            )
+
+            # =================================================
+            # 3. CONVERSÃO FINAL PARA 1080x1920
+            # =================================================
+
+            print(
+                f"[PREPARANDO CLIPE FINAL {i + 1}/{CLIP_COUNT}]"
+            )
+
+            preparar_clipe_final(
+                processado,
+                final
+            )
+
+            clipes_finais.append(
+                final
+            )
+
+            apagar_arquivo(
                 processado
             )
 
         # ====================================================
-        # JUNTAR
+        # 4. CONCATENAR
         # ====================================================
 
-        video_junto = os.path.join(
-            pasta,
-            "video_junto.mp4"
+        video_concat = os.path.join(
+            trabalho,
+            "video_concat.mp4"
+        )
+
+        print(
+            "\n[CONCATENANDO CLIPES]"
         )
 
         concatenar_clipes(
-            clipes,
-            video_junto,
-            pasta
+            clipes_finais,
+            video_concat
         )
 
+        # Liberar os clipes individuais
+        for clipe in clipes_finais:
+
+            apagar_arquivo(
+                clipe
+            )
+
         # ====================================================
-        # ROTEIRO
+        # 5. ROTEIRO
         # ====================================================
 
         roteiro = criar_roteiro(
-            pais
+            destino
         )
 
-        print("=" * 60)
-        print("[ROTEIRO]")
-        print(roteiro)
-        print("=" * 60)
+        print(
+            "\n[ROTEIRO]"
+        )
+
+        print(
+            roteiro
+        )
 
         # ====================================================
-        # ÁUDIO
+        # 6. ÁUDIO
         # ====================================================
 
-        narracao = os.path.join(
-            pasta,
+        audio = os.path.join(
+            trabalho,
             "narracao.mp3"
+        )
+
+        print(
+            "\n[GERANDO NARRAÇÃO]"
         )
 
         gerar_audio(
             roteiro,
-            narracao
+            audio
         )
 
         # ====================================================
-        # LEGENDAS
+        # 7. LEGENDAS
         # ====================================================
+
+        pasta_legendas = os.path.join(
+            trabalho,
+            "legendas"
+        )
 
         legendas = criar_legenda_pngs(
             roteiro,
-            pasta
-        )
-
-        print(
-            "[LEGENDAS]",
-            len(legendas)
+            pasta_legendas
         )
 
         # ====================================================
-        # SAÍDA
+        # 8. SAÍDA
         # ====================================================
 
-        nome = (
+        nome_saida = (
             "mundo_afora_"
-            +
-            uuid.uuid4().hex[:10]
-            +
-            ".mp4"
+            + uuid.uuid4().hex
+            + ".mp4"
         )
 
         saida = os.path.join(
             OUTPUT_DIR,
-            nome
+            nome_saida
         )
 
         # ====================================================
-        # FINAL
+        # 9. FINALIZAR
         # ====================================================
 
         finalizar_video(
-            video_junto,
-            narracao,
+            video_concat,
+            audio,
             legendas,
             saida
         )
 
-        if not os.path.exists(
-            saida
-        ):
+        # ====================================================
+        # VERIFICAR
+        # ====================================================
+
+        if not os.path.exists(saida):
 
             raise RuntimeError(
-                "Vídeo final não foi criado."
+                "O vídeo final não foi criado."
             )
 
         tamanho = os.path.getsize(
             saida
         )
 
-        print("=" * 60)
-        print("[VÍDEO PRONTO]")
-        print(saida)
+        if tamanho < 100000:
+
+            raise RuntimeError(
+                "O vídeo final ficou inválido ou muito pequeno."
+            )
+
+        print(
+            "\n===================================="
+        )
+
+        print(
+            "[VÍDEO CRIADO COM SUCESSO]"
+        )
+
+        print(
+            saida
+        )
+
         print(
             "Tamanho:",
             round(
@@ -1602,151 +1483,158 @@ def gerar_video(
             ),
             "MB"
         )
-        print("=" * 60)
+
+        print(
+            "===================================="
+        )
 
         return saida
 
     finally:
 
+        # ====================================================
+        # LIMPEZA
+        # ====================================================
+
         try:
 
-            shutil.rmtree(
-                pasta,
-                ignore_errors=True
-            )
+            if os.path.exists(trabalho):
+
+                shutil.rmtree(
+                    trabalho,
+                    ignore_errors=True
+                )
 
         except Exception as erro:
 
             print(
-                "[ERRO LIMPEZA]",
+                "[AVISO LIMPEZA]",
                 erro
             )
 
 
 # ============================================================
-# HOME
+# ROTA PRINCIPAL
 # ============================================================
 
 @app.route(
     "/",
-    methods=["GET"]
+    methods=["GET", "POST"]
 )
 def index():
 
+    erro = None
+    sucesso = None
+    arquivo = None
+
+    if request.method == "POST":
+
+        destino = request.form.get(
+            "destino"
+        )
+
+        try:
+
+            if not destino:
+
+                raise RuntimeError(
+                    "Selecione um destino."
+                )
+
+            caminho = criar_video(
+                destino
+            )
+
+            nome = os.path.basename(
+                caminho
+            )
+
+            sucesso = (
+                "Vídeo criado com sucesso! "
+                "Clique abaixo para baixar."
+            )
+
+            arquivo = (
+                "/download/"
+                + nome
+            )
+
+        except Exception as e:
+
+            print(
+                "\n[ERRO GERAL]"
+            )
+
+            print(
+                repr(e)
+            )
+
+            erro = str(e)
+
     return render_template_string(
         HTML,
-        paises=list(
-            PAISES.keys()
-        )
+        destinos=DESTINOS.keys(),
+        erro=erro,
+        sucesso=sucesso,
+        arquivo=arquivo
     )
 
 
 # ============================================================
-# GERAR
+# DOWNLOAD
 # ============================================================
 
 @app.route(
-    "/gerar",
-    methods=["POST"]
+    "/download/<nome>"
 )
-def gerar():
+def download(nome):
 
-    pais = request.form.get(
-        "pais"
+    caminho = os.path.join(
+        OUTPUT_DIR,
+        nome
     )
 
-    if not pais:
+    if not os.path.exists(caminho):
 
         return (
-            "Escolha um destino.",
-            400
+            "Arquivo não encontrado.",
+            404
         )
 
-    try:
-
-        arquivo = gerar_video(
-            pais
-        )
-
-        return send_file(
-            arquivo,
-            as_attachment=True,
-            download_name=os.path.basename(
-                arquivo
-            ),
-            mimetype="video/mp4"
-        )
-
-    except Exception as erro:
-
-        print("=" * 60)
-        print("[ERRO GERAL]")
-        print(repr(erro))
-        print("=" * 60)
-
-        return f"""
-        <html>
-
-        <body style="
-            background:#111;
-            color:white;
-            font-family:Arial;
-            padding:30px;
-        ">
-
-        <h2>❌ Erro ao gerar vídeo</h2>
-
-        <pre style="
-            white-space:pre-wrap;
-            background:#222;
-            padding:20px;
-            border-radius:10px;
-        ">{erro}</pre>
-
-        <br>
-
-        <a href="/"
-        style="
-        color:white;
-        background:#333;
-        padding:12px 20px;
-        border-radius:8px;
-        text-decoration:none;
-        ">
-        Voltar
-        </a>
-
-        </body>
-
-        </html>
-        """, 500
+    return send_file(
+        caminho,
+        as_attachment=True,
+        download_name=nome,
+        mimetype="video/mp4"
+    )
 
 
 # ============================================================
-# HEALTH
+# HEALTH CHECK
 # ============================================================
 
 @app.route(
-    "/health",
-    methods=["GET"]
+    "/health"
 )
 def health():
 
-    return {
-        "status": "ok",
-        "ffmpeg": FFMPEG,
-        "voice": VOICE
-    }
+    return "OK"
 
 
 # ============================================================
-# START
+# RAILWAY
 # ============================================================
 
 if __name__ == "__main__":
 
+    porta = int(
+        os.getenv(
+            "PORT",
+            "8080"
+        )
+    )
+
     app.run(
         host="0.0.0.0",
-        port=PORT,
-        debug=False
+        port=porta
     )
