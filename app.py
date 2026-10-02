@@ -5,14 +5,12 @@ import shutil
 import subprocess
 import asyncio
 import textwrap
-import time
 
 import requests
 import edge_tts
 import imageio_ffmpeg
 
 from PIL import Image, ImageDraw, ImageFont
-
 from flask import Flask, request, render_template_string, send_file
 
 
@@ -23,6 +21,7 @@ from flask import Flask, request, render_template_string, send_file
 app = Flask(__name__)
 
 PORT = int(os.getenv("PORT", "8080"))
+
 
 # ============================================================
 # CONFIGURAÇÕES
@@ -86,13 +85,15 @@ for caminho in FONT_PATHS:
 
 
 def carregar_fonte(tamanho):
+
     if FONT_PATH:
+
         try:
             return ImageFont.truetype(
                 FONT_PATH,
                 tamanho
             )
-        except:
+        except Exception:
             pass
 
     return ImageFont.load_default()
@@ -508,7 +509,8 @@ def executar_ffmpeg(comando):
         print("=" * 60)
 
         raise RuntimeError(
-            "FFmpeg falhou."
+            "FFmpeg falhou:\n\n" +
+            resultado.stderr[-4000:]
         )
 
     return resultado
@@ -521,7 +523,6 @@ def executar_ffmpeg(comando):
 def buscar_video(query):
 
     if not PEXELS_API_KEY:
-
         raise RuntimeError(
             "PEXELS_API_KEY não configurada."
         )
@@ -555,7 +556,6 @@ def buscar_video(query):
     )
 
     if not videos:
-
         raise RuntimeError(
             f"Nenhum vídeo encontrado: {query}"
         )
@@ -586,12 +586,8 @@ def buscar_video(query):
                 "height"
             ) or 0
 
-            tamanho = (
-                largura * altura
-            )
+            tamanho = largura * altura
 
-            # Queremos algo suficientemente bom
-            # sem pegar arquivos gigantes.
             if largura >= 500 and altura >= 800:
 
                 candidatos.append(
@@ -604,17 +600,9 @@ def buscar_video(query):
                 )
 
     if not candidatos:
-
         raise RuntimeError(
             "Nenhum arquivo compatível encontrado."
         )
-
-    # --------------------------------------------------------
-    # Prioridade:
-    # 1. vertical
-    # 2. resolução intermediária
-    # 3. evitar arquivos enormes
-    # --------------------------------------------------------
 
     def pontuacao(item):
 
@@ -628,16 +616,13 @@ def buscar_video(query):
         if vertical:
             score += 100000000
 
-        # Preferência por algo próximo de 540x960
         distancia = abs(
-            (largura * altura)
-            -
+            (largura * altura) -
             (540 * 960)
         )
 
         score -= distancia
 
-        # Penaliza resoluções absurdamente grandes
         if largura > 1500 or altura > 2500:
             score -= 5000000
 
@@ -690,10 +675,7 @@ def baixar_video(url, destino):
             ):
 
                 if bloco:
-
-                    arquivo.write(
-                        bloco
-                    )
+                    arquivo.write(bloco)
 
     tamanho = os.path.getsize(
         destino
@@ -946,7 +928,6 @@ def criar_imagem_legenda(
     medidas = []
 
     altura_total = 0
-
     largura_max = 0
 
     for linha in linhas:
@@ -957,15 +938,8 @@ def criar_imagem_legenda(
             font=fonte
         )
 
-        largura = (
-            bbox[2] -
-            bbox[0]
-        )
-
-        altura = (
-            bbox[3] -
-            bbox[1]
-        )
+        largura = bbox[2] - bbox[0]
+        altura = bbox[3] - bbox[1]
 
         medidas.append(
             (
@@ -1118,7 +1092,7 @@ def dividir_texto(
 
 
 # ============================================================
-# CRIAR UMA LEGENDA POR VEZ
+# CRIAR LEGENDAS
 # ============================================================
 
 def criar_legenda_pngs(
@@ -1135,16 +1109,11 @@ def criar_legenda_pngs(
         return []
 
     pesos = [
-        max(
-            len(frase),
-            1
-        )
+        max(len(frase), 1)
         for frase in frases
     ]
 
-    total = sum(
-        pesos
-    )
+    total = sum(pesos)
 
     resultado = []
 
@@ -1160,10 +1129,7 @@ def criar_legenda_pngs(
 
         inicio = tempo
 
-        fim = (
-            tempo +
-            duracao
-        )
+        fim = tempo + duracao
 
         if indice == len(frases) - 1:
             fim = FINAL_DURATION
@@ -1203,7 +1169,25 @@ def aplicar_legenda(
     saida
 ):
 
-    duracao = fim - inicio
+    print("=" * 60)
+    print("[APLICANDO LEGENDA]")
+    print("Imagem:", imagem)
+    print("Inicio:", inicio)
+    print("Fim:", fim)
+    print("=" * 60)
+
+    # --------------------------------------------------------
+    # IMPORTANTE:
+    #
+    # Não usamos mais:
+    #
+    # -loop 1 -i legenda.png
+    #
+    # Isso estava causando o problema no processamento.
+    #
+    # Agora criamos uma entrada de vídeo de 60 segundos
+    # a partir do PNG.
+    # --------------------------------------------------------
 
     comando = [
 
@@ -1214,11 +1198,16 @@ def aplicar_legenda(
         "error",
         "-y",
 
+        # Vídeo
         "-i",
         video_entrada,
 
+        # PNG transformado em vídeo
         "-loop",
         "1",
+
+        "-framerate",
+        str(FPS),
 
         "-i",
         imagem,
@@ -1226,8 +1215,21 @@ def aplicar_legenda(
         "-filter_complex",
 
         (
-            f"[0:v][1:v]"
+            f"[1:v]"
+            f"format=rgba,"
+            f"setpts=PTS-STARTPTS,"
+            f"trim=duration={FINAL_DURATION},"
+            f"setpts=PTS-STARTPTS"
+            f"[leg];"
+
+            f"[0:v]"
+            f"setpts=PTS-STARTPTS"
+            f"[base];"
+
+            f"[base][leg]"
             f"overlay=0:0:"
+            f"eof_action=repeat:"
+            f"shortest=0:"
             f"enable='between(t,{inicio:.3f},{fim:.3f})'"
             f"[v]"
         ),
@@ -1254,10 +1256,16 @@ def aplicar_legenda(
         str(FPS),
 
         "-c:a",
-        "copy",
+        "aac",
+
+        "-b:a",
+        "128k",
 
         "-t",
         str(FINAL_DURATION),
+
+        "-movflags",
+        "+faststart",
 
         saida
     ]
@@ -1268,7 +1276,7 @@ def aplicar_legenda(
 
 
 # ============================================================
-# FINALIZAR COM LEGENDAS SEQUENCIALMENTE
+# FINALIZAR
 # ============================================================
 
 def finalizar_video(
@@ -1279,7 +1287,8 @@ def finalizar_video(
 ):
 
     # --------------------------------------------------------
-    # Primeiro coloca o áudio no vídeo
+    # PRIMEIRO:
+    # coloca a narração
     # --------------------------------------------------------
 
     video_audio = os.path.join(
@@ -1335,7 +1344,7 @@ def finalizar_video(
     arquivos_temporarios = []
 
     # --------------------------------------------------------
-    # Aplica UMA legenda por vez
+    # LEGENDAS
     # --------------------------------------------------------
 
     for indice, legenda in enumerate(legendas):
@@ -1375,20 +1384,21 @@ def finalizar_video(
         )
 
         if atual != video_audio:
+
             try:
                 os.remove(atual)
-            except:
+            except Exception:
                 pass
 
         atual = destino
 
     # --------------------------------------------------------
-    # Limpeza
+    # LIMPEZA
     # --------------------------------------------------------
 
     try:
         os.remove(video_audio)
-    except:
+    except Exception:
         pass
 
     for arquivo in arquivos_temporarios:
@@ -1397,7 +1407,7 @@ def finalizar_video(
 
             try:
                 os.remove(arquivo)
-            except:
+            except Exception:
                 pass
 
 
@@ -1474,15 +1484,11 @@ def gerar_video(
                 processado
             )
 
-            # ------------------------------------------------
-            # Remove o arquivo original imediatamente
-            # ------------------------------------------------
-
             try:
                 os.remove(
                     original
                 )
-            except:
+            except Exception:
                 pass
 
             clipes.append(
