@@ -2,3 +2,4 @@ Flask
 requests
 imageio-ffmpeg
 gunicorn
+edge-tts
