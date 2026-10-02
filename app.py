@@ -4,7 +4,6 @@ import uuid
 import asyncio
 import shutil
 import subprocess
-import html
 import textwrap
 
 import requests
@@ -21,14 +20,16 @@ app = Flask(__name__)
 # CONFIGURAÇÕES
 # ============================================================
 
+# RESOLUÇÃO FINAL
 WIDTH = 1080
 HEIGHT = 1920
 
-# Processamento interno mais leve
+# PROCESSAMENTO INTERNO
+# Muito mais leve para o Railway
 PROCESS_WIDTH = 540
 PROCESS_HEIGHT = 960
 
-FPS = 24
+FPS = 20
 
 CLIP_DURATION = 15
 CLIP_COUNT = 4
@@ -56,7 +57,6 @@ try:
     FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 except Exception:
     FFMPEG = shutil.which("ffmpeg")
-
 
 if not FFMPEG:
     raise RuntimeError("FFmpeg não encontrado.")
@@ -150,14 +150,10 @@ select {
 
 button {
     margin-top: 30px;
-    background: #fff;
+    background: white;
     color: #111;
     font-weight: bold;
     cursor: pointer;
-}
-
-button:hover {
-    opacity: .9;
 }
 
 .erro {
@@ -266,9 +262,14 @@ def executar_ffmpeg(comando):
 
         print("\n[ERRO FFMPEG]")
 
-        print("RETURN CODE:", resultado.returncode)
+        print(
+            "RETURN CODE:",
+            resultado.returncode
+        )
 
-        print(resultado.stderr)
+        print(
+            resultado.stderr
+        )
 
         raise RuntimeError(
             "FFmpeg falhou:\n\n" +
@@ -279,12 +280,13 @@ def executar_ffmpeg(comando):
 
 
 # ============================================================
-# BUSCAR VÍDEO NO PEXELS
+# BUSCAR VÍDEO
 # ============================================================
 
 def buscar_video(termo):
 
     if not PEXELS_API_KEY:
+
         raise RuntimeError(
             "PEXELS_API_KEY não configurada."
         )
@@ -316,40 +318,52 @@ def buscar_video(termo):
 
     dados = resposta.json()
 
-    videos = dados.get("videos", [])
+    videos = dados.get(
+        "videos",
+        []
+    )
 
     if not videos:
         return None
 
-    # Embaralha para evitar sempre os mesmos vídeos
     random.shuffle(videos)
 
+    # Primeiro tenta vertical
     for video in videos:
 
-        arquivos = video.get("video_files", [])
+        arquivos = video.get(
+            "video_files",
+            []
+        )
 
         candidatos = []
 
         for arquivo in arquivos:
 
-            largura = arquivo.get("width") or 0
-            altura = arquivo.get("height") or 0
-            link = arquivo.get("link")
+            largura = arquivo.get(
+                "width"
+            ) or 0
+
+            altura = arquivo.get(
+                "height"
+            ) or 0
+
+            link = arquivo.get(
+                "link"
+            )
 
             if not link:
                 continue
 
-            # Preferência por vertical
             if altura >= largura:
+
                 candidatos.append(
                     (
                         abs(
                             (altura / max(largura, 1))
                             - (16 / 9)
                         ),
-                        link,
-                        largura,
-                        altura
+                        link
                     )
                 )
 
@@ -361,21 +375,27 @@ def buscar_video(termo):
 
             return candidatos[0][1]
 
-    # Fallback para qualquer vídeo
+    # Fallback
     for video in videos:
 
-        arquivos = video.get("video_files", [])
+        arquivos = video.get(
+            "video_files",
+            []
+        )
 
         if arquivos:
 
             arquivos.sort(
                 key=lambda x:
-                (x.get("width") or 0) *
+                (x.get("width") or 0)
+                *
                 (x.get("height") or 0),
                 reverse=True
             )
 
-            link = arquivos[0].get("link")
+            link = arquivos[0].get(
+                "link"
+            )
 
             if link:
                 return link
@@ -384,12 +404,15 @@ def buscar_video(termo):
 
 
 # ============================================================
-# BAIXAR VÍDEO
+# DOWNLOAD
 # ============================================================
 
 def baixar_video(url, caminho):
 
-    print("[DOWNLOAD]", url)
+    print(
+        "[DOWNLOAD]",
+        url
+    )
 
     resposta = requests.get(
         url,
@@ -399,7 +422,10 @@ def baixar_video(url, caminho):
 
     resposta.raise_for_status()
 
-    with open(caminho, "wb") as arquivo:
+    with open(
+        caminho,
+        "wb"
+    ) as arquivo:
 
         for bloco in resposta.iter_content(
             chunk_size=1024 * 1024
@@ -408,11 +434,16 @@ def baixar_video(url, caminho):
             if bloco:
                 arquivo.write(bloco)
 
-    tamanho = os.path.getsize(caminho)
+    tamanho = os.path.getsize(
+        caminho
+    )
 
     print(
         "[OK DOWNLOAD]",
-        round(tamanho / 1024 / 1024, 2),
+        round(
+            tamanho / 1024 / 1024,
+            2
+        ),
         "MB"
     )
 
@@ -421,16 +452,21 @@ def baixar_video(url, caminho):
 # PROCESSAR CLIPE
 # ============================================================
 
-def processar_clipe(entrada, saida):
+def processar_clipe(
+    entrada,
+    saida
+):
 
     comando = [
+
         FFMPEG,
 
         "-hide_banner",
         "-loglevel", "error",
         "-y",
 
-        "-i", entrada,
+        "-i",
+        entrada,
 
         "-vf",
         (
@@ -441,70 +477,40 @@ def processar_clipe(entrada, saida):
 
         "-an",
 
-        "-t", str(CLIP_DURATION),
+        "-t",
+        str(CLIP_DURATION),
 
-        "-r", str(FPS),
+        "-r",
+        str(FPS),
 
-        "-c:v", "libx264",
+        "-c:v",
+        "libx264",
 
-        "-preset", "ultrafast",
+        "-preset",
+        "ultrafast",
 
-        "-crf", "30",
+        "-crf",
+        "32",
 
-        "-pix_fmt", "yuv420p",
-
-        saida
-    ]
-
-    executar_ffmpeg(comando)
-
-
-# ============================================================
-# CONVERTER CLIPES PARA 1080x1920
-# ============================================================
-
-def preparar_clipe_final(entrada, saida):
-
-    comando = [
-
-        FFMPEG,
-
-        "-hide_banner",
-        "-loglevel", "error",
-        "-y",
-
-        "-i", entrada,
-
-        "-vf",
-        (
-            f"scale={WIDTH}:{HEIGHT}:"
-            "force_original_aspect_ratio=increase,"
-            f"crop={WIDTH}:{HEIGHT}"
-        ),
-
-        "-an",
-
-        "-r", str(FPS),
-
-        "-c:v", "libx264",
-
-        "-preset", "ultrafast",
-
-        "-crf", "31",
-
-        "-pix_fmt", "yuv420p",
+        "-pix_fmt",
+        "yuv420p",
 
         saida
     ]
 
-    executar_ffmpeg(comando)
+    executar_ffmpeg(
+        comando
+    )
 
 
 # ============================================================
-# CONCATENAR CLIPES
+# CONCATENAR
 # ============================================================
 
-def concatenar_clipes(clipes, saida):
+def concatenar_clipes(
+    clipes,
+    saida
+):
 
     lista = os.path.join(
         TEMP_DIR,
@@ -521,11 +527,14 @@ def concatenar_clipes(clipes, saida):
 
             caminho = os.path.abspath(
                 clipe
-            ).replace("\\", "/")
+            ).replace(
+                "\\",
+                "/"
+            )
 
             arquivo.write(
                 "file '" +
-                caminho.replace("'", "'\\''") +
+                caminho +
                 "'\n"
             )
 
@@ -537,27 +546,36 @@ def concatenar_clipes(clipes, saida):
         "-loglevel", "error",
         "-y",
 
-        "-f", "concat",
+        "-f",
+        "concat",
 
-        "-safe", "0",
+        "-safe",
+        "0",
 
-        "-i", lista,
+        "-i",
+        lista,
 
-        "-c", "copy",
+        "-c",
+        "copy",
 
-        "-t", str(FINAL_DURATION),
+        "-t",
+        str(FINAL_DURATION),
 
         saida
     ]
 
     try:
 
-        executar_ffmpeg(comando)
+        executar_ffmpeg(
+            comando
+        )
 
     finally:
 
         try:
-            os.remove(lista)
+            os.remove(
+                lista
+            )
         except:
             pass
 
@@ -566,7 +584,9 @@ def concatenar_clipes(clipes, saida):
 # ROTEIRO
 # ============================================================
 
-def criar_roteiro(destino):
+def criar_roteiro(
+    destino
+):
 
     textos = {
 
@@ -661,10 +681,13 @@ def criar_roteiro(destino):
 
 
 # ============================================================
-# GERAR ÁUDIO
+# ÁUDIO
 # ============================================================
 
-async def gerar_audio_async(texto, arquivo):
+async def gerar_audio_async(
+    texto,
+    arquivo
+):
 
     comunicador = edge_tts.Communicate(
         texto,
@@ -672,10 +695,15 @@ async def gerar_audio_async(texto, arquivo):
         rate=VOICE_RATE
     )
 
-    await comunicador.save(arquivo)
+    await comunicador.save(
+        arquivo
+    )
 
 
-def gerar_audio(texto, arquivo):
+def gerar_audio(
+    texto,
+    arquivo
+):
 
     asyncio.run(
         gerar_audio_async(
@@ -706,24 +734,33 @@ def encontrar_fonte():
     for fonte in fontes:
 
         if os.path.exists(fonte):
+
             return fonte
 
     return None
 
 
 # ============================================================
-# CRIAR IMAGEM DE LEGENDA
+# LEGENDA PNG
 # ============================================================
 
-def criar_imagem_legenda(texto, arquivo):
+def criar_imagem_legenda(
+    texto,
+    arquivo
+):
 
     imagem = Image.new(
         "RGBA",
-        (WIDTH, HEIGHT),
+        (
+            PROCESS_WIDTH,
+            PROCESS_HEIGHT
+        ),
         (0, 0, 0, 0)
     )
 
-    desenho = ImageDraw.Draw(imagem)
+    desenho = ImageDraw.Draw(
+        imagem
+    )
 
     fonte_path = encontrar_fonte()
 
@@ -731,20 +768,19 @@ def criar_imagem_legenda(texto, arquivo):
 
         fonte = ImageFont.truetype(
             fonte_path,
-            54
+            30
         )
 
     else:
 
         fonte = ImageFont.load_default()
 
-    # Quebra automática
     linhas = textwrap.wrap(
         texto,
-        width=30
+        width=28
     )
 
-    textos = []
+    dados = []
 
     for linha in linhas:
 
@@ -754,10 +790,17 @@ def criar_imagem_legenda(texto, arquivo):
             font=fonte
         )
 
-        largura = caixa[2] - caixa[0]
-        altura = caixa[3] - caixa[1]
+        largura = (
+            caixa[2] -
+            caixa[0]
+        )
 
-        textos.append(
+        altura = (
+            caixa[3] -
+            caixa[1]
+        )
+
+        dados.append(
             (
                 linha,
                 largura,
@@ -765,86 +808,105 @@ def criar_imagem_legenda(texto, arquivo):
             )
         )
 
-    espacamento = 12
+    espacamento = 8
 
     altura_total = sum(
-        item[2]
-        for item in textos
-    ) + (
-        max(len(textos) - 1, 0)
-        * espacamento
+        x[2]
+        for x in dados
     )
 
-    # Posição aproximada no centro inferior
+    altura_total += (
+        max(
+            len(dados) - 1,
+            0
+        )
+        *
+        espacamento
+    )
+
     y = int(
-        HEIGHT * 0.70
-        - altura_total / 2
+        PROCESS_HEIGHT * 0.70
+        -
+        altura_total / 2
     )
-
-    padding_x = 45
-    padding_y = 30
 
     largura_max = max(
-        item[1]
-        for item in textos
+        x[1]
+        for x in dados
     )
 
-    caixa_esquerda = (
-        WIDTH // 2
-        - largura_max // 2
-        - padding_x
+    padding_x = 25
+    padding_y = 18
+
+    esquerda = (
+        PROCESS_WIDTH // 2
+        -
+        largura_max // 2
+        -
+        padding_x
     )
 
-    caixa_direita = (
-        WIDTH // 2
-        + largura_max // 2
-        + padding_x
+    direita = (
+        PROCESS_WIDTH // 2
+        +
+        largura_max // 2
+        +
+        padding_x
     )
 
-    caixa_cima = y - padding_y
+    cima = y - padding_y
 
-    caixa_baixo = (
+    baixo = (
         y
-        + altura_total
-        + padding_y
+        +
+        altura_total
+        +
+        padding_y
     )
 
-    # Fundo preto transparente
     desenho.rounded_rectangle(
         (
-            caixa_esquerda,
-            caixa_cima,
-            caixa_direita,
-            caixa_baixo
+            esquerda,
+            cima,
+            direita,
+            baixo
         ),
-        radius=25,
+        radius=16,
         fill=(0, 0, 0, 175)
     )
 
-    for linha, largura, altura in textos:
+    for linha, largura, altura in dados:
 
         x = (
-            WIDTH // 2
-            - largura // 2
+            PROCESS_WIDTH // 2
+            -
+            largura // 2
         )
 
-        # Sombra
         desenho.text(
-            (x + 3, y + 3),
+            (
+                x + 2,
+                y + 2
+            ),
             linha,
             font=fonte,
             fill=(0, 0, 0, 255)
         )
 
-        # Texto
         desenho.text(
-            (x, y),
+            (
+                x,
+                y
+            ),
             linha,
             font=fonte,
             fill=(255, 255, 255, 255)
         )
 
-        y += altura + espacamento
+        y += (
+            altura +
+            espacamento
+        )
 
     imagem.save(
         arquivo,
@@ -856,36 +918,42 @@ def criar_imagem_legenda(texto, arquivo):
 # DIVIDIR TEXTO
 # ============================================================
 
-def dividir_texto(texto, quantidade=8):
+def dividir_texto(
+    texto,
+    quantidade=8
+):
 
     palavras = texto.split()
 
     if not palavras:
         return []
 
-    total_caracteres = len(texto)
-
     alvo = max(
         1,
-        total_caracteres / quantidade
+        len(texto) / quantidade
     )
 
     partes = []
 
     atual = []
-    tamanho_atual = 0
+    tamanho = 0
 
     for palavra in palavras:
 
-        atual.append(palavra)
+        atual.append(
+            palavra
+        )
 
-        tamanho_atual += (
+        tamanho += (
             len(palavra) + 1
         )
 
         if (
-            tamanho_atual >= alvo
-            and len(partes) < quantidade - 1
+            tamanho >= alvo
+            and
+            len(partes)
+            <
+            quantidade - 1
         ):
 
             partes.append(
@@ -893,9 +961,10 @@ def dividir_texto(texto, quantidade=8):
             )
 
             atual = []
-            tamanho_atual = 0
+            tamanho = 0
 
     if atual:
+
         partes.append(
             " ".join(atual)
         )
@@ -928,31 +997,39 @@ def criar_legenda_pngs(
         8
     )
 
-    # Distribuição baseada no número de caracteres
     tamanhos = [
-        max(len(x), 1)
+        max(
+            len(x),
+            1
+        )
         for x in partes
     ]
 
-    total = sum(tamanhos)
+    total = sum(
+        tamanhos
+    )
 
     legendas = []
 
-    tempo_atual = 0
+    tempo = 0
 
-    for i, parte in enumerate(partes):
+    for i, parte in enumerate(
+        partes
+    ):
 
         duracao = (
             FINAL_DURATION
-            * tamanhos[i]
-            / total
+            *
+            tamanhos[i]
+            /
+            total
         )
 
-        inicio = tempo_atual
+        inicio = tempo
 
         fim = (
-            tempo_atual
-            + duracao
+            tempo +
+            duracao
         )
 
         arquivo = os.path.join(
@@ -983,13 +1060,63 @@ def criar_legenda_pngs(
             fim
         )
 
-        tempo_atual = fim
+        tempo = fim
 
     return legendas
 
 
 # ============================================================
-# APLICAR TODAS AS LEGENDAS
+# ADICIONAR ÁUDIO
+# ============================================================
+
+def adicionar_audio(
+    video,
+    audio,
+    saida
+):
+
+    comando = [
+
+        FFMPEG,
+
+        "-hide_banner",
+        "-loglevel", "error",
+        "-y",
+
+        "-i",
+        video,
+
+        "-i",
+        audio,
+
+        "-map",
+        "0:v:0",
+
+        "-map",
+        "1:a:0",
+
+        "-c:v",
+        "copy",
+
+        "-c:a",
+        "aac",
+
+        "-b:a",
+        "128k",
+
+        "-t",
+        str(FINAL_DURATION),
+
+        saida
+    ]
+
+    executar_ffmpeg(
+        comando
+    )
+
+
+# ============================================================
+# APLICAR LEGENDAS + UPSCALE
 # UMA ÚNICA VEZ
 # ============================================================
 
@@ -999,28 +1126,36 @@ def aplicar_todas_legendas(
     saida
 ):
 
-    print("\n[APLICANDO TODAS AS LEGENDAS DE UMA VEZ]")
+    print(
+        "\n[APLICANDO LEGENDAS + UPSCALE]"
+    )
 
     filtros = []
 
-    # Vídeo principal
+    # Vídeo base
     filtros.append(
         "[0:v]setpts=PTS-STARTPTS[base0]"
     )
 
-    entrada_atual = "base0"
+    atual = "base0"
 
-    # Cada PNG vira uma entrada
-    for i, legenda in enumerate(legendas):
+    for i, legenda in enumerate(
+        legendas
+    ):
 
-        indice_video = i + 1
+        indice = i + 1
 
-        nome_legenda = f"leg{i}"
+        nome_legenda = (
+            f"leg{i}"
+        )
 
-        nome_saida = f"base{i + 1}"
+        nome_saida = (
+            f"base{i + 1}"
+        )
 
+        # PNG já está em 540x960
         filtros.append(
-            f"[{indice_video}:v]"
+            f"[{indice}:v]"
             "format=rgba,"
             "setpts=PTS-STARTPTS,"
             f"trim=duration={FINAL_DURATION},"
@@ -1029,17 +1164,27 @@ def aplicar_todas_legendas(
         )
 
         filtros.append(
-            f"[{entrada_atual}]"
+            f"[{atual}]"
             f"[{nome_legenda}]"
-            "overlay="
-            "0:0:"
+            "overlay=0:0:"
             "eof_action=repeat:"
             "shortest=0:"
-            f"enable='between(t,{legenda['inicio']:.3f},{legenda['fim']:.3f})'"
+            f"enable='between(t,"
+            f"{legenda['inicio']:.3f},"
+            f"{legenda['fim']:.3f})'"
             f"[{nome_saida}]"
         )
 
-        entrada_atual = nome_saida
+        atual = nome_saida
+
+    # Depois das legendas:
+    # upscale 540x960 -> 1080x1920
+    filtros.append(
+        f"[{atual}]"
+        f"scale={WIDTH}:{HEIGHT}:"
+        "flags=fast_bilinear"
+        "[final]"
+    )
 
     filtro_final = ";".join(
         filtros
@@ -1057,7 +1202,7 @@ def aplicar_todas_legendas(
         video_entrada
     ]
 
-    # Adiciona todos os PNGs
+    # Entradas das legendas
     for legenda in legendas:
 
         comando.extend(
@@ -1080,7 +1225,7 @@ def aplicar_todas_legendas(
             filtro_final,
 
             "-map",
-            f"[{entrada_atual}]",
+            "[final]",
 
             "-map",
             "0:a?",
@@ -1092,7 +1237,7 @@ def aplicar_todas_legendas(
             "ultrafast",
 
             "-crf",
-            "31",
+            "30",
 
             "-pix_fmt",
             "yuv420p",
@@ -1122,105 +1267,29 @@ def aplicar_todas_legendas(
 
 
 # ============================================================
-# FINALIZAR VÍDEO
+# LIMPAR
 # ============================================================
 
-def finalizar_video(
-    video,
-    audio,
-    legendas,
-    saida
+def apagar_arquivo(
+    caminho
 ):
 
-    print("\n[ADICIONANDO NARRAÇÃO]")
-
-    video_audio = os.path.join(
-        OUTPUT_DIR,
-        f"video_audio_{uuid.uuid4().hex}.mp4"
-    )
-
-    comando_audio = [
-
-        FFMPEG,
-
-        "-hide_banner",
-        "-loglevel", "error",
-        "-y",
-
-        "-i",
-        video,
-
-        "-i",
-        audio,
-
-        "-map",
-        "0:v:0",
-
-        "-map",
-        "1:a:0",
-
-        # Não reencoda o vídeo aqui
-        "-c:v",
-        "copy",
-
-        "-c:a",
-        "aac",
-
-        "-b:a",
-        "128k",
-
-        "-t",
-        str(FINAL_DURATION),
-
-        "-movflags",
-        "+faststart",
-
-        video_audio
-    ]
-
-    executar_ffmpeg(
-        comando_audio
-    )
-
     try:
 
-        print(
-            "\n[APLICANDO LEGENDAS]"
-        )
+        if (
+            caminho
+            and
+            os.path.exists(caminho)
+        ):
 
-        aplicar_todas_legendas(
-            video_audio,
-            legendas,
-            saida
-        )
-
-    finally:
-
-        try:
             os.remove(
-                video_audio
+                caminho
             )
-        except:
-            pass
-
-
-# ============================================================
-# LIMPAR ARQUIVO
-# ============================================================
-
-def apagar_arquivo(caminho):
-
-    try:
-
-        if caminho and os.path.exists(caminho):
-
-            os.remove(caminho)
 
     except Exception as erro:
 
         print(
-            "[AVISO] Não foi possível remover:",
-            caminho,
+            "[AVISO] Erro ao apagar:",
             erro
         )
 
@@ -1229,12 +1298,14 @@ def apagar_arquivo(caminho):
 # CRIAR VÍDEO
 # ============================================================
 
-def criar_video(destino):
+def criar_video(
+    destino
+):
 
     if not PEXELS_API_KEY:
 
         raise RuntimeError(
-            "Configure a variável PEXELS_API_KEY no Railway."
+            "Configure PEXELS_API_KEY."
         )
 
     trabalho = os.path.join(
@@ -1247,9 +1318,7 @@ def criar_video(destino):
         exist_ok=True
     )
 
-    downloads = []
-    clipes_processados = []
-    clipes_finais = []
+    clipes = []
 
     try:
 
@@ -1259,13 +1328,16 @@ def criar_video(destino):
         )
 
         # ====================================================
-        # 1. DOWNLOAD DOS 4 VÍDEOS
+        # 1. BAIXAR + PROCESSAR 4 CLIPES
         # ====================================================
 
-        for i in range(CLIP_COUNT):
+        for i in range(
+            CLIP_COUNT
+        ):
 
             print(
-                f"\n[BUSCANDO VÍDEO {i + 1}/{CLIP_COUNT}]"
+                f"\n[BUSCANDO VÍDEO "
+                f"{i + 1}/{CLIP_COUNT}]"
             )
 
             url = buscar_video(
@@ -1275,7 +1347,7 @@ def criar_video(destino):
             if not url:
 
                 raise RuntimeError(
-                    f"Não foi encontrado vídeo para {destino}."
+                    "Não foi encontrado vídeo."
                 )
 
             original = os.path.join(
@@ -1288,26 +1360,14 @@ def criar_video(destino):
                 f"processado_{i}.mp4"
             )
 
-            final = os.path.join(
-                trabalho,
-                f"final_{i}.mp4"
-            )
-
             baixar_video(
                 url,
                 original
             )
 
-            downloads.append(
-                original
-            )
-
-            # =================================================
-            # 2. PROCESSAMENTO LEVE
-            # =================================================
-
             print(
-                f"[PROCESSANDO CLIPE {i + 1}/{CLIP_COUNT}]"
+                f"[PROCESSANDO CLIPE "
+                f"{i + 1}/{CLIP_COUNT}]"
             )
 
             processar_clipe(
@@ -1315,7 +1375,7 @@ def criar_video(destino):
                 processado
             )
 
-            clipes_processados.append(
+            clipes.append(
                 processado
             )
 
@@ -1323,29 +1383,8 @@ def criar_video(destino):
                 original
             )
 
-            # =================================================
-            # 3. CONVERSÃO FINAL PARA 1080x1920
-            # =================================================
-
-            print(
-                f"[PREPARANDO CLIPE FINAL {i + 1}/{CLIP_COUNT}]"
-            )
-
-            preparar_clipe_final(
-                processado,
-                final
-            )
-
-            clipes_finais.append(
-                final
-            )
-
-            apagar_arquivo(
-                processado
-            )
-
         # ====================================================
-        # 4. CONCATENAR
+        # 2. CONCATENAR
         # ====================================================
 
         video_concat = os.path.join(
@@ -1354,23 +1393,23 @@ def criar_video(destino):
         )
 
         print(
-            "\n[CONCATENANDO CLIPES]"
+            "\n[CONCATENANDO]"
         )
 
         concatenar_clipes(
-            clipes_finais,
+            clipes,
             video_concat
         )
 
-        # Liberar os clipes individuais
-        for clipe in clipes_finais:
+        # Liberar clipes
+        for clipe in clipes:
 
             apagar_arquivo(
                 clipe
             )
 
         # ====================================================
-        # 5. ROTEIRO
+        # 3. ROTEIRO
         # ====================================================
 
         roteiro = criar_roteiro(
@@ -1386,7 +1425,7 @@ def criar_video(destino):
         )
 
         # ====================================================
-        # 6. ÁUDIO
+        # 4. NARRAÇÃO
         # ====================================================
 
         audio = os.path.join(
@@ -1404,7 +1443,7 @@ def criar_video(destino):
         )
 
         # ====================================================
-        # 7. LEGENDAS
+        # 5. LEGENDAS
         # ====================================================
 
         pasta_legendas = os.path.join(
@@ -1418,13 +1457,38 @@ def criar_video(destino):
         )
 
         # ====================================================
-        # 8. SAÍDA
+        # 6. VÍDEO COM ÁUDIO
+        # ====================================================
+
+        video_audio = os.path.join(
+            trabalho,
+            "video_audio.mp4"
+        )
+
+        print(
+            "\n[ADICIONANDO ÁUDIO]"
+        )
+
+        adicionar_audio(
+            video_concat,
+            audio,
+            video_audio
+        )
+
+        apagar_arquivo(
+            video_concat
+        )
+
+        # ====================================================
+        # 7. SAÍDA FINAL
         # ====================================================
 
         nome_saida = (
             "mundo_afora_"
-            + uuid.uuid4().hex
-            + ".mp4"
+            +
+            uuid.uuid4().hex
+            +
+            ".mp4"
         )
 
         saida = os.path.join(
@@ -1433,24 +1497,25 @@ def criar_video(destino):
         )
 
         # ====================================================
-        # 9. FINALIZAR
+        # 8. UMA ÚNICA ENCODAGEM PESADA
         # ====================================================
 
-        finalizar_video(
-            video_concat,
-            audio,
+        aplicar_todas_legendas(
+            video_audio,
             legendas,
             saida
         )
 
         # ====================================================
-        # VERIFICAR
+        # VERIFICAÇÃO
         # ====================================================
 
-        if not os.path.exists(saida):
+        if not os.path.exists(
+            saida
+        ):
 
             raise RuntimeError(
-                "O vídeo final não foi criado."
+                "Vídeo final não foi criado."
             )
 
         tamanho = os.path.getsize(
@@ -1460,11 +1525,11 @@ def criar_video(destino):
         if tamanho < 100000:
 
             raise RuntimeError(
-                "O vídeo final ficou inválido ou muito pequeno."
+                "Vídeo final inválido."
             )
 
         print(
-            "\n===================================="
+            "\n=================================="
         )
 
         print(
@@ -1485,36 +1550,26 @@ def criar_video(destino):
         )
 
         print(
-            "===================================="
+            "=================================="
         )
 
         return saida
 
     finally:
 
-        # ====================================================
-        # LIMPEZA
-        # ====================================================
-
         try:
 
-            if os.path.exists(trabalho):
-
-                shutil.rmtree(
-                    trabalho,
-                    ignore_errors=True
-                )
-
-        except Exception as erro:
-
-            print(
-                "[AVISO LIMPEZA]",
-                erro
+            shutil.rmtree(
+                trabalho,
+                ignore_errors=True
             )
+
+        except:
+            pass
 
 
 # ============================================================
-# ROTA PRINCIPAL
+# HOME
 # ============================================================
 
 @app.route(
@@ -1550,13 +1605,13 @@ def index():
             )
 
             sucesso = (
-                "Vídeo criado com sucesso! "
-                "Clique abaixo para baixar."
+                "Vídeo criado com sucesso!"
             )
 
             arquivo = (
                 "/download/"
-                + nome
+                +
+                nome
             )
 
         except Exception as e:
@@ -1594,7 +1649,9 @@ def download(nome):
         nome
     )
 
-    if not os.path.exists(caminho):
+    if not os.path.exists(
+        caminho
+    ):
 
         return (
             "Arquivo não encontrado.",
@@ -1610,7 +1667,7 @@ def download(nome):
 
 
 # ============================================================
-# HEALTH CHECK
+# HEALTH
 # ============================================================
 
 @app.route(
@@ -1622,7 +1679,7 @@ def health():
 
 
 # ============================================================
-# RAILWAY
+# START
 # ============================================================
 
 if __name__ == "__main__":
